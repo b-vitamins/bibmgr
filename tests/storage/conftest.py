@@ -6,9 +6,9 @@ from pathlib import Path
 import pytest
 
 from bibmgr.core.models import Entry, EntryType
-from bibmgr.storage.parser import BibtexParser
 from bibmgr.storage.backend import FileSystemStorage
-from bibmgr.storage.sidecar import MetadataSidecar, EntryMetadata, Note
+from bibmgr.storage.parser import BibtexParser
+from bibmgr.storage.sidecar import EntryMetadata, MetadataSidecar, Note
 from bibmgr.storage.system import StorageSystem
 
 

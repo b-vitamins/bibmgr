@@ -1123,7 +1123,7 @@ class TestErrorHandling:
             # Try to write (should handle gracefully)
             try:
                 sidecar.update_metadata("test", notes="Should fail")
-            except (PermissionError, IOError):
+            except (OSError, PermissionError):
                 pass  # Expected
 
         finally:

@@ -59,7 +59,7 @@ def sample_bibtex():
     return """
     @string{ACM = "ACM Press"}
     @string{YEAR = "2024"}
-    
+
     % This is a comment
     @article{smith2024neural,
         author = {John Smith and Jane Doe},
@@ -70,17 +70,17 @@ def sample_bibtex():
         pages = {123--145},
         doi = {10.1234/mlr.2024.042}
     }
-    
+
     @book{knuth1984tex,
         author = {Donald E. Knuth},
-        title = {The {TeX}book},  
+        title = {The {TeX}book},
         publisher = ACM,
         year = {1984},
         isbn = {0-201-13447-0}
     }
-    
+
     @comment{This is a block comment that should be preserved}
-    
+
     @inproceedings{lee2023attention,
         author = "Lee, " # "S." # " and Park, K.",
         title = "Attention is All You Need: " # "Revisited",
@@ -100,25 +100,25 @@ def malformed_bibtex():
         journal = "Journal",
         year = 2024
     }
-    
+
     @article{missing_comma
         author = "Missing Comma"
         title = "No Comma Between Fields"
         year = 2024
     }
-    
+
     @article{unclosed,
         author = "Unclosed Entry",
         title = "Missing closing brace"
         journal = "Test"
-    
+
     @article{good2,
         author = "Another Good",
         title = "Should Parse",
         journal = "Journal",
         year = 2024
     }
-    
+
     @article{,  % Missing key
         author = "No Key",
         title = "Entry without key"
@@ -161,14 +161,14 @@ class TestBasicParsing:
             journal = "Journal A",
             year = 2023
         }
-        
+
         @book{book1,
             title = "Book One",
             author = "Author B",
             publisher = "Publisher",
             year = 2024
         }
-        
+
         @misc{misc1,
             title = "Misc Entry",
             note = "Some note"
@@ -246,14 +246,14 @@ class TestStringDefinitions:
         text = """
         @string{IEEE = "IEEE Computer Society"}
         @string{PROC = "Proceedings of the "}
-        
+
         @article{test,
             author = "Author",
             title = "Title",
             journal = IEEE,
             year = 2024
         }
-        
+
         @inproceedings{conf,
             author = "Presenter",
             title = "Conference Paper",
@@ -277,7 +277,7 @@ class TestStringDefinitions:
         @string{FIRST = "First"}
         @string{SECOND = FIRST # " Second"}
         @string{THIRD = SECOND # " Third"}
-        
+
         @misc{test,
             title = THIRD,
             note = "Test"
@@ -332,7 +332,7 @@ class TestConcatenation:
         parser = parser_factory()
         text = """
         @string{PREFIX = "Prefix: "}
-        
+
         @article{test,
             title = PREFIX # "Main Title",
             author = "Name" # " " # {Surname},
@@ -396,7 +396,7 @@ class TestCommentsAndPreambles:
             that spans multiple lines
             and contains @article{fake, title="Not parsed"}
         }
-        
+
         @article{real,
             title = "Real Article",
             year = 2024
@@ -412,7 +412,7 @@ class TestCommentsAndPreambles:
         parser = parser_factory()
         text = """
         @preamble{"\\newcommand{\\noopsort}[1]{}"}
-        
+
         @article{test,
             title = "Test",
             year = 2024
@@ -429,7 +429,7 @@ class TestCommentsAndPreambles:
         text = """
         % Header comment
         @string{VAR = "Value"}
-        
+
         @article{test,
             % Field comment
             author = "Author",
@@ -474,7 +474,7 @@ class TestErrorHandling:
         @article{unclosed,
             author = "Author",
             title = "Unclosed entry"
-        
+
         @article{next,
             title = "Next entry",
             year = 2024
@@ -494,7 +494,7 @@ class TestErrorHandling:
             author = "No Key",
             title = "Entry without key"
         }
-        
+
         @article{valid,
             title = "Valid entry",
             year = 2024
@@ -529,7 +529,7 @@ class TestErrorHandling:
             title = "First",
             year = 2023
         }
-        
+
         @article{duplicate,
             title = "Second",
             year = 2024

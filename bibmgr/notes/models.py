@@ -11,7 +11,7 @@ from dataclasses import dataclass, field, replace
 from datetime import datetime
 from difflib import unified_diff
 from enum import Enum
-from typing import Any, Optional
+from typing import Any
 
 from bibmgr.notes.exceptions import NoteValidationError, QuoteValidationError
 
@@ -81,7 +81,7 @@ class Note:
 
     # Type and metadata
     type: NoteType = NoteType.GENERAL
-    title: Optional[str] = None
+    title: str | None = None
 
     # Organization
     tags: list[str] = field(default_factory=list)
@@ -223,10 +223,10 @@ class Quote:
     text: str
 
     # Location
-    page: Optional[int] = None
-    section: Optional[str] = None
-    paragraph: Optional[int] = None
-    context: Optional[str] = None  # Surrounding text
+    page: int | None = None
+    section: str | None = None
+    paragraph: int | None = None
+    context: str | None = None  # Surrounding text
 
     # Categorization
     category: QuoteCategory = QuoteCategory.OTHER
@@ -234,11 +234,11 @@ class Quote:
 
     # Metadata
     tags: list[str] = field(default_factory=list)
-    note: Optional[str] = None  # Additional commentary
+    note: str | None = None  # Additional commentary
 
     # Timestamps
     created_at: datetime = field(default_factory=datetime.now)
-    highlighted_at: Optional[datetime] = None  # When highlighted in source
+    highlighted_at: datetime | None = None  # When highlighted in source
 
     def __post_init__(self) -> None:
         """Validate quote data after initialization."""
@@ -359,20 +359,20 @@ class ReadingProgress:
 
     # Page tracking
     current_page: int = 0
-    total_pages: Optional[int] = None
+    total_pages: int | None = None
 
     # Section tracking
     sections_read: int = 0
-    sections_total: Optional[int] = None
+    sections_total: int | None = None
 
     # Time tracking
     reading_time_minutes: int = 0
     session_count: int = 0
 
     # Timestamps
-    started_at: Optional[datetime] = None
-    finished_at: Optional[datetime] = None
-    last_read_at: Optional[datetime] = None
+    started_at: datetime | None = None
+    finished_at: datetime | None = None
+    last_read_at: datetime | None = None
 
     # Quality metrics (1-5 scale)
     importance: int = 3
@@ -436,8 +436,8 @@ class ReadingProgress:
 
     def update_progress(
         self,
-        page: Optional[int] = None,
-        section: Optional[int] = None,
+        page: int | None = None,
+        section: int | None = None,
         time_minutes: int = 0,
     ) -> ReadingProgress:
         """Update reading progress with new data.
@@ -513,8 +513,8 @@ class NoteVersion:
     created_at: datetime
 
     # Change metadata
-    change_summary: Optional[str] = None
-    changed_by: Optional[str] = None  # User/system identifier
+    change_summary: str | None = None
+    changed_by: str | None = None  # User/system identifier
 
     @property
     def word_count(self) -> int:

@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import tempfile
 from pathlib import Path
-from typing import Any, List
+from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
@@ -417,7 +417,7 @@ def capture_output():
         def get_json(self) -> Any:
             return self.json_data
 
-        def get_tables(self) -> List[List[str]]:
+        def get_tables(self) -> list[list[str]]:
             return self.tables
 
     return OutputCapture()

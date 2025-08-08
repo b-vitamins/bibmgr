@@ -6,7 +6,7 @@ import json
 import re
 import sys
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
+from typing import Any
 
 import click
 
@@ -14,7 +14,7 @@ from bibmgr.core.models import Entry, EntryType
 from bibmgr.storage.parser import BibtexParser
 
 
-def parse_field_assignments(fields: List[str]) -> Dict[str, str]:
+def parse_field_assignments(fields: list[str]) -> dict[str, str]:
     """Parse field assignments from strings.
 
     Args:
@@ -37,7 +37,7 @@ def parse_field_assignments(fields: List[str]) -> Dict[str, str]:
     return result
 
 
-def parse_filter_query(query: str) -> Dict[str, Any]:
+def parse_filter_query(query: str) -> dict[str, Any]:
     """Parse filter query string.
 
     Args:
@@ -86,7 +86,7 @@ def confirm_action(message: str, default: bool = False, force: bool = False) -> 
 
 
 def handle_error(
-    message: str, exception: Optional[Exception] = None, exit_code: Optional[int] = 1
+    message: str, exception: Exception | None = None, exit_code: int | None = 1
 ) -> None:
     """Handle an error.
 
@@ -104,7 +104,7 @@ def handle_error(
         sys.exit(exit_code)
 
 
-def load_entries_from_file(file_path: Path, format: str = "bibtex") -> List[Entry]:
+def load_entries_from_file(file_path: Path, format: str = "bibtex") -> list[Entry]:
     """Load entries from a file.
 
     Args:
@@ -158,7 +158,7 @@ def load_entries_from_file(file_path: Path, format: str = "bibtex") -> List[Entr
 
 
 def save_entries_to_file(
-    entries: List[Entry], file_path: Path, format: str = "bibtex"
+    entries: list[Entry], file_path: Path, format: str = "bibtex"
 ) -> None:
     """Save entries to a file.
 
@@ -236,12 +236,12 @@ def save_entries_to_file(
 
 
 def filter_entries(
-    entries: List[Entry],
-    type: Optional[str] = None,
-    author: Optional[str] = None,
-    year: Optional[Union[int, range]] = None,
+    entries: list[Entry],
+    type: str | None = None,
+    author: str | None = None,
+    year: int | range | None = None,
     **kwargs,
-) -> List[Entry]:
+) -> list[Entry]:
     """Filter entries based on criteria.
 
     Args:
@@ -284,8 +284,8 @@ def filter_entries(
 
 
 def sort_entries(
-    entries: List[Entry], by: str = "key", reverse: bool = False
-) -> List[Entry]:
+    entries: list[Entry], by: str = "key", reverse: bool = False
+) -> list[Entry]:
     """Sort entries.
 
     Args:

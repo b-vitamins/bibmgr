@@ -4,23 +4,23 @@ from unittest.mock import Mock
 
 import pytest
 
-from bibmgr.core.models import Entry, EntryType
 from bibmgr.citations.styles import (
-    CitationStyle,
-    StyleOptions,
     APAStyle,
-    MLAStyle,
-    ChicagoStyle,
-    IEEEStyle,
-    CSLStyle,
-    StyleRegistry,
-    FormattingCache,
     AuthorFormatter,
+    ChicagoStyle,
+    CitationStyle,
+    CSLStyle,
     DateFormatter,
+    FormattingCache,
+    IEEEStyle,
+    MLAStyle,
+    StyleOptions,
+    StyleRegistry,
     TitleFormatter,
     validate_doi,
     validate_url,
 )
+from bibmgr.core.models import Entry, EntryType
 
 
 class TestStyleOptions:

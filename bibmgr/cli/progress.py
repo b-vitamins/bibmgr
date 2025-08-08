@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+from collections.abc import Generator, Iterable
 from contextlib import contextmanager
-from typing import Any, Generator, Iterable, Optional
+from typing import Any
 
 from rich.console import Console
 from rich.live import Live
@@ -23,7 +24,7 @@ class ProgressBar:
 
     def __init__(
         self,
-        total: Optional[int] = None,
+        total: int | None = None,
         description: str = "Processing",
         show_speed: bool = False,
         show_time: bool = True,
@@ -53,7 +54,7 @@ class ProgressBar:
                 columns.append(TimeRemainingColumn())
 
         self.progress = Progress(*columns)
-        self.task_id: Optional[TaskID] = None
+        self.task_id: TaskID | None = None
         self.console = Console()
 
     def __enter__(self):
@@ -150,7 +151,7 @@ class BatchProgress:
             TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
             TextColumn("[progress.completed]{task.completed}/{task.total}"),
         )
-        self.task_id: Optional[TaskID] = None
+        self.task_id: TaskID | None = None
 
     def __enter__(self):
         """Enter context."""
@@ -242,7 +243,7 @@ class MultiProgress:
         """Exit context."""
         self.progress.__exit__(exc_type, exc_val, exc_tb)
 
-    def add_task(self, name: str, description: str, total: Optional[int] = None) -> str:
+    def add_task(self, name: str, description: str, total: int | None = None) -> str:
         """Add a new task.
 
         Args:
@@ -258,7 +259,7 @@ class MultiProgress:
         return name
 
     def update(
-        self, name: str, advance: int = 1, description: Optional[str] = None
+        self, name: str, advance: int = 1, description: str | None = None
     ) -> None:
         """Update a task.
 

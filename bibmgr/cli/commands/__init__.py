@@ -1,11 +1,11 @@
 """CLI commands module."""
 
 from . import (
-    entry_commands,
     advanced_commands,
     collection_commands,
-    tag_commands,
+    entry_commands,
     search_commands,
+    tag_commands,
 )
 
 __all__ = [

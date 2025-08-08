@@ -15,8 +15,7 @@ import io
 import json
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Any, Dict, List
-
+from typing import Any
 
 from bibmgr.quality.engine import QualityReport
 from bibmgr.quality.validators import ValidationSeverity
@@ -451,8 +450,8 @@ class HTMLReporter(ReportFormatter):
             return "#f44336"  # Red
 
     def _group_by_severity(
-        self, validation_results: Dict[str, List[Any]]
-    ) -> Dict[str, List[tuple]]:
+        self, validation_results: dict[str, list[Any]]
+    ) -> dict[str, list[tuple]]:
         """Group validation results by severity."""
         by_severity = {}
 

@@ -453,7 +453,7 @@ class TestAuthorFormatValidator:
 
     def test_author_separator(self):
         """Should use 'and' to separate authors, not semicolon."""
-        from bibmgr.core import Entry, EntryType, AuthorFormatValidator
+        from bibmgr.core import AuthorFormatValidator, Entry, EntryType
 
         validator = AuthorFormatValidator()
 
@@ -472,7 +472,7 @@ class TestAuthorFormatValidator:
 
     def test_et_al_warning(self):
         """Should warn about 'et al.' usage."""
-        from bibmgr.core import Entry, EntryType, AuthorFormatValidator
+        from bibmgr.core import AuthorFormatValidator, Entry, EntryType
 
         validator = AuthorFormatValidator()
 
@@ -483,7 +483,7 @@ class TestAuthorFormatValidator:
 
     def test_empty_author_detection(self):
         """Should detect empty author entries."""
-        from bibmgr.core import Entry, EntryType, AuthorFormatValidator
+        from bibmgr.core import AuthorFormatValidator, Entry, EntryType
 
         validator = AuthorFormatValidator()
 
@@ -496,7 +496,7 @@ class TestAuthorFormatValidator:
 
     def test_too_many_commas(self):
         """Should warn about too many commas in author name."""
-        from bibmgr.core import Entry, EntryType, AuthorFormatValidator
+        from bibmgr.core import AuthorFormatValidator, Entry, EntryType
 
         validator = AuthorFormatValidator()
 
@@ -517,7 +517,7 @@ class TestAuthorFormatValidator:
 
     def test_editor_field_validation(self):
         """Should validate editor field same as author."""
-        from bibmgr.core import Entry, EntryType, AuthorFormatValidator
+        from bibmgr.core import AuthorFormatValidator, Entry, EntryType
 
         validator = AuthorFormatValidator()
 
@@ -541,7 +541,7 @@ class TestCrossReferenceValidator:
 
     def test_valid_crossref(self):
         """Should accept valid cross-references."""
-        from bibmgr.core import Entry, EntryType, CrossReferenceValidator
+        from bibmgr.core import CrossReferenceValidator, Entry, EntryType
 
         all_keys = {"mainbook", "chapter1", "chapter2"}
         validator = CrossReferenceValidator(all_keys)
@@ -559,7 +559,7 @@ class TestCrossReferenceValidator:
 
     def test_invalid_crossref(self):
         """Should detect references to non-existent entries."""
-        from bibmgr.core import Entry, EntryType, CrossReferenceValidator
+        from bibmgr.core import CrossReferenceValidator, Entry, EntryType
 
         all_keys = {"entry1", "entry2"}
         validator = CrossReferenceValidator(all_keys)
@@ -578,7 +578,7 @@ class TestCrossReferenceValidator:
 
     def test_self_reference(self):
         """Should detect self-references."""
-        from bibmgr.core import Entry, EntryType, CrossReferenceValidator
+        from bibmgr.core import CrossReferenceValidator, Entry, EntryType
 
         all_keys = {"self"}
         validator = CrossReferenceValidator(all_keys)
@@ -591,7 +591,7 @@ class TestCrossReferenceValidator:
 
     def test_circular_reference(self):
         """Should detect circular references."""
-        from bibmgr.core import Entry, EntryType, CrossReferenceValidator
+        from bibmgr.core import CrossReferenceValidator, Entry, EntryType
 
         # Create circular reference chain
         entries = {
@@ -610,7 +610,7 @@ class TestCrossReferenceValidator:
 
     def test_no_keys_provided(self):
         """Should handle when no key list is provided."""
-        from bibmgr.core import Entry, EntryType, CrossReferenceValidator
+        from bibmgr.core import CrossReferenceValidator, Entry, EntryType
 
         validator = CrossReferenceValidator()  # No keys
 
@@ -698,11 +698,11 @@ class TestCompositeValidator:
     def test_combine_validators(self):
         """Should combine multiple validators."""
         from bibmgr.core import (
+            CompositeValidator,
             Entry,
             EntryType,
-            CompositeValidator,
-            RequiredFieldsValidator,
             FieldFormatValidator,
+            RequiredFieldsValidator,
         )
 
         validator = CompositeValidator(
@@ -727,7 +727,7 @@ class TestCompositeValidator:
 
     def test_deduplicate_errors(self):
         """Should deduplicate identical errors."""
-        from bibmgr.core import Entry, EntryType, CompositeValidator, ValidationError
+        from bibmgr.core import CompositeValidator, Entry, EntryType, ValidationError
 
         # Custom validator that produces duplicates
         class DuplicateValidator:
@@ -755,11 +755,11 @@ class TestCompositeValidator:
     def test_preserve_error_order(self):
         """Should preserve error order from validators."""
         from bibmgr.core import (
+            CompositeValidator,
             Entry,
             EntryType,
-            CompositeValidator,
-            RequiredFieldsValidator,
             FieldFormatValidator,
+            RequiredFieldsValidator,
         )
 
         validator = CompositeValidator(
@@ -788,7 +788,7 @@ class TestValidatorFactory:
 
     def test_create_default_validator(self):
         """Should create validator with all standard checks."""
-        from bibmgr.core import create_default_validator, Entry, EntryType
+        from bibmgr.core import Entry, EntryType, create_default_validator
 
         validator = create_default_validator()
 
@@ -812,7 +812,7 @@ class TestValidatorFactory:
 
     def test_create_validator_with_keys(self):
         """Should create validator with cross-reference checking."""
-        from bibmgr.core import create_default_validator, Entry, EntryType
+        from bibmgr.core import Entry, EntryType, create_default_validator
 
         all_keys = {"book1", "chapter1"}
         validator = create_default_validator(all_keys=all_keys)

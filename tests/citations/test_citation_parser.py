@@ -6,16 +6,16 @@ from unittest.mock import Mock
 import pytest
 
 from bibmgr.citations.parser import (
-    CitationParser,
+    AsyncCitationProcessor,
+    BibLaTeXParser,
     Citation,
     CitationCommand,
-    CitationProcessor,
-    MarkdownParser,
-    LaTeXParser,
-    BibLaTeXParser,
-    ParserRegistry,
     CitationExtractor,
-    AsyncCitationProcessor,
+    CitationParser,
+    CitationProcessor,
+    LaTeXParser,
+    MarkdownParser,
+    ParserRegistry,
 )
 
 

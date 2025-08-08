@@ -56,7 +56,7 @@ class TestQueryTerm:
 
     def test_simple_term(self):
         """Should create basic search term."""
-        from bibmgr.search.query import QueryTerm, QueryField
+        from bibmgr.search.query import QueryField, QueryTerm
 
         term = QueryTerm(text="machine")
 
@@ -69,7 +69,7 @@ class TestQueryTerm:
 
     def test_field_specific_term(self):
         """Should create field-specific term."""
-        from bibmgr.search.query import QueryTerm, QueryField
+        from bibmgr.search.query import QueryField, QueryTerm
 
         term = QueryTerm(text="smith", field=QueryField.AUTHOR)
 
@@ -113,7 +113,7 @@ class TestQueryTerm:
 
     def test_range_term(self):
         """Should support range queries."""
-        from bibmgr.search.query import QueryTerm, QueryField
+        from bibmgr.search.query import QueryField, QueryTerm
 
         term = QueryTerm(
             text="2020..2024", field=QueryField.YEAR, range_start=2020, range_end=2024
@@ -132,7 +132,7 @@ class TestQueryTerm:
 
     def test_term_string_representation(self):
         """Should have readable string representation."""
-        from bibmgr.search.query import QueryTerm, QueryField
+        from bibmgr.search.query import QueryField, QueryTerm
 
         # Simple term
         assert str(QueryTerm("test")) == "test"
@@ -188,7 +188,7 @@ class TestQuery:
 
     def test_query_with_filters(self):
         """Should store extracted filters."""
-        from bibmgr.search.query import Query, QueryTerm, QueryField
+        from bibmgr.search.query import Query, QueryField, QueryTerm
 
         terms = [
             QueryTerm("2024", field=QueryField.YEAR),
@@ -223,7 +223,7 @@ class TestQuery:
 
     def test_has_field_queries(self):
         """Should detect field-specific queries."""
-        from bibmgr.search.query import Query, QueryTerm, QueryField
+        from bibmgr.search.query import Query, QueryField, QueryTerm
 
         # No field queries
         query = Query(original="test", terms=[QueryTerm("test")])
@@ -237,7 +237,7 @@ class TestQuery:
 
     def test_get_field_terms(self):
         """Should retrieve terms for specific field."""
-        from bibmgr.search.query import Query, QueryTerm, QueryField
+        from bibmgr.search.query import Query, QueryField, QueryTerm
 
         terms = [
             QueryTerm("smith", field=QueryField.AUTHOR),
@@ -275,7 +275,7 @@ class TestQueryParser:
 
     def test_parse_field_query(self):
         """Should parse field-specific queries."""
-        from bibmgr.search.query import QueryParser, QueryField
+        from bibmgr.search.query import QueryField, QueryParser
 
         parser = QueryParser()
 
@@ -382,7 +382,7 @@ class TestQueryParser:
 
     def test_parse_complex_query(self):
         """Should parse complex multi-feature query."""
-        from bibmgr.search.query import QueryParser, QueryField
+        from bibmgr.search.query import QueryField, QueryParser
 
         parser = QueryParser()
         query = parser.parse(

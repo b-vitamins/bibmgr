@@ -3,14 +3,13 @@
 import time
 from concurrent.futures import ThreadPoolExecutor
 
-
 from bibmgr.core.models import Entry, EntryType
 from bibmgr.operations.crud import (
+    BulkOperationOptions,
+    CascadeOptions,
     EntryOperations,
     OperationResult,
     OperationType,
-    BulkOperationOptions,
-    CascadeOptions,
 )
 
 
@@ -668,7 +667,7 @@ class TestErrorHandling:
                 pass
 
             def add(self, entry):
-                raise IOError("Disk full")
+                raise OSError("Disk full")
 
             def commit(self):
                 pass

@@ -1,30 +1,30 @@
 """Entry operations module."""
 
 from .crud import (
+    BulkOperationOptions,
+    CascadeOptions,
     EntryOperations,
     OperationResult,
     OperationType,
-    BulkOperationOptions,
-    CascadeOptions,
 )
 from .duplicates import (
+    AuthorNormalizer,
     DuplicateDetector,
-    DuplicateMatch,
-    MatchType,
     DuplicateIndex,
+    DuplicateMatch,
     EntryMerger,
+    MatchType,
     MergeStrategy,
     StringSimilarity,
     TitleNormalizer,
-    AuthorNormalizer,
 )
 from .importer import (
     BibTeXImporter,
-    ImportResult,
-    ImportOptions,
     ConflictStrategy,
-    ImportStage,
     ImportError,
+    ImportOptions,
+    ImportResult,
+    ImportStage,
 )
 
 __all__ = [

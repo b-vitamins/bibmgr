@@ -7,7 +7,7 @@ reading progress, and templates with proper validation and error handling.
 from __future__ import annotations
 
 import threading
-from typing import Any, Optional
+from typing import Any
 from uuid import uuid4
 
 from bibmgr.core.models import Entry
@@ -51,8 +51,8 @@ class NoteManager:
         entry_key: str,
         content: str,
         type: NoteType | str = NoteType.GENERAL,
-        title: Optional[str] = None,
-        tags: Optional[list[str]] = None,
+        title: str | None = None,
+        tags: list[str] | None = None,
     ) -> Note:
         """Create a new note.
 
@@ -103,11 +103,11 @@ class NoteManager:
     def update_note(
         self,
         note_id: str,
-        content: Optional[str] = None,
-        title: Optional[str] = None,
-        tags: Optional[list[str]] = None,
-        type: Optional[NoteType | str] = None,
-    ) -> Optional[Note]:
+        content: str | None = None,
+        title: str | None = None,
+        tags: list[str] | None = None,
+        type: NoteType | str | None = None,
+    ) -> Note | None:
         """Update an existing note.
 
         Args:
@@ -157,7 +157,7 @@ class NoteManager:
         with self._lock:
             return self.storage.delete_note(note_id)
 
-    def get_note(self, note_id: str) -> Optional[Note]:
+    def get_note(self, note_id: str) -> Note | None:
         """Get a note by ID.
 
         Args:
@@ -171,7 +171,7 @@ class NoteManager:
     def get_notes(
         self,
         entry_key: str,
-        type: Optional[NoteType | str] = None,
+        type: NoteType | str | None = None,
     ) -> list[Note]:
         """Get notes for an entry.
 
@@ -194,8 +194,8 @@ class NoteManager:
     def search_notes(
         self,
         query: str,
-        type: Optional[NoteType | str] = None,
-        tags: Optional[list[str]] = None,
+        type: NoteType | str | None = None,
+        tags: list[str] | None = None,
     ) -> list[Note]:
         """Search notes.
 
@@ -222,12 +222,12 @@ class NoteManager:
         self,
         entry_key: str,
         text: str,
-        page: Optional[int] = None,
-        section: Optional[str] = None,
-        category: Optional[QuoteCategory | str] = None,
+        page: int | None = None,
+        section: str | None = None,
+        category: QuoteCategory | str | None = None,
         importance: int = 3,
-        tags: Optional[list[str]] = None,
-        note: Optional[str] = None,
+        tags: list[str] | None = None,
+        note: str | None = None,
     ) -> Quote:
         """Add a quote.
 
@@ -307,7 +307,7 @@ class NoteManager:
     def get_quotes(
         self,
         entry_key: str,
-        category: Optional[QuoteCategory | str] = None,
+        category: QuoteCategory | str | None = None,
     ) -> list[Quote]:
         """Get quotes for an entry.
 
@@ -329,9 +329,9 @@ class NoteManager:
 
     def search_quotes(
         self,
-        query: Optional[str] = None,
-        tags: Optional[list[str]] = None,
-        category: Optional[QuoteCategory | str] = None,
+        query: str | None = None,
+        tags: list[str] | None = None,
+        category: QuoteCategory | str | None = None,
     ) -> list[Quote]:
         """Search quotes.
 
@@ -361,15 +361,15 @@ class NoteManager:
     def track_reading(
         self,
         entry_key: str,
-        page: Optional[int] = None,
-        total_pages: Optional[int] = None,
-        time_minutes: Optional[int] = None,
-        priority: Optional[Priority | int] = None,
-        status: Optional[ReadingStatus | str] = None,
-        importance: Optional[int] = None,
-        difficulty: Optional[int] = None,
-        enjoyment: Optional[int] = None,
-        comprehension: Optional[int] = None,
+        page: int | None = None,
+        total_pages: int | None = None,
+        time_minutes: int | None = None,
+        priority: Priority | int | None = None,
+        status: ReadingStatus | str | None = None,
+        importance: int | None = None,
+        difficulty: int | None = None,
+        enjoyment: int | None = None,
+        comprehension: int | None = None,
     ) -> ReadingProgress:
         """Track reading progress for an entry.
 
@@ -469,7 +469,7 @@ class NoteManager:
 
         return progress
 
-    def get_reading_progress(self, entry_key: str) -> Optional[ReadingProgress]:
+    def get_reading_progress(self, entry_key: str) -> ReadingProgress | None:
         """Get reading progress for an entry.
 
         Args:
@@ -484,7 +484,7 @@ class NoteManager:
         self,
         entry_key: str,
         status: ReadingStatus | str,
-    ) -> Optional[ReadingProgress]:
+    ) -> ReadingProgress | None:
         """Update reading status.
 
         Args:
@@ -511,8 +511,8 @@ class NoteManager:
 
     def get_reading_list(
         self,
-        status: Optional[ReadingStatus | str] = None,
-        min_priority: Optional[Priority | int] = None,
+        status: ReadingStatus | str | None = None,
+        min_priority: Priority | int | None = None,
     ) -> list[ReadingProgress]:
         """Get reading list.
 
@@ -540,7 +540,7 @@ class NoteManager:
         self,
         entry_key: str,
         template_name: str,
-        entry: Optional[Entry] = None,
+        entry: Entry | None = None,
         **variables: Any,
     ) -> Note:
         """Create note from template.
@@ -595,8 +595,8 @@ class NoteManager:
     def bulk_update_tags(
         self,
         note_ids: list[str],
-        add: Optional[list[str]] = None,
-        remove: Optional[list[str]] = None,
+        add: list[str] | None = None,
+        remove: list[str] | None = None,
     ) -> list[Note]:
         """Bulk update tags on notes.
 
@@ -633,7 +633,7 @@ class NoteManager:
     def merge_notes(
         self,
         note_ids: list[str],
-        title: Optional[str] = None,
+        title: str | None = None,
     ) -> Note:
         """Merge multiple notes into one.
 
@@ -925,8 +925,8 @@ class NoteManager:
 
     def export_reading_report(
         self,
-        status: Optional[ReadingStatus | str] = None,
-        min_priority: Optional[Priority | int] = None,
+        status: ReadingStatus | str | None = None,
+        min_priority: Priority | int | None = None,
     ) -> str:
         """Export reading progress report.
 

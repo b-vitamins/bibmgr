@@ -4,10 +4,11 @@ These tests are implementation-agnostic and focus on the expected behavior
 of the search engine, including indexing, searching, caching, and analytics.
 """
 
-import pytest
 import tempfile
 import time
 from pathlib import Path
+
+import pytest
 
 # Module-level skip removed - implementation ready
 

@@ -7,16 +7,16 @@ This package provides:
 - Collection statistics and analytics
 """
 
+from .manager import CollectionManager
 from .models import (
     Collection,
-    SmartCollection,
-    CollectionStats,
-    CollectionQuery,
     CollectionPredicate,
+    CollectionQuery,
+    CollectionStats,
     PredicateOperator,
+    SmartCollection,
 )
-from .manager import CollectionManager
-from .tags import TagManager, TagHierarchy
+from .tags import TagHierarchy, TagManager
 
 __all__ = [
     # Models

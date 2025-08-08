@@ -8,44 +8,44 @@ import json
 import tempfile
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Optional
 
 import pytest
 
+from bibmgr.core.models import Entry, EntryType
+
 # Import quality module components
 from bibmgr.quality import (
+    ArXivValidator,
     # Validators
     AuthorValidator,
-    ArXivValidator,
-    DateValidator,
-    DOIValidator,
-    ISSNValidator,
-    ISBNValidator,
-    ORCIDValidator,
-    PageRangeValidator,
-    URLValidator,
-    ValidationResult,
-    ValidationSeverity,
+    # Integrity
+    BackupVerifier,
     # Consistency
     ConsistencyChecker,
     ConsistencyReport,
     CrossReferenceValidator,
+    CSVReporter,
+    DateValidator,
+    DOIValidator,
     DuplicateDetector,
-    OrphanDetector,
-    # Integrity
-    BackupVerifier,
     FileIntegrityChecker,
+    HTMLReporter,
+    ISBNValidator,
+    ISSNValidator,
+    JSONReporter,
+    MarkdownReporter,
+    ORCIDValidator,
+    OrphanDetector,
+    PageRangeValidator,
     PDFValidator,
     # Engine
     QualityEngine,
     QualityMetrics,
     QualityReport,
-    CSVReporter,
-    HTMLReporter,
-    JSONReporter,
-    MarkdownReporter,
+    URLValidator,
+    ValidationResult,
+    ValidationSeverity,
 )
-from bibmgr.core.models import Entry, EntryType
 
 
 class TestValidators:
@@ -830,7 +830,7 @@ class TestQualityEngine:
     def test_custom_rule_addition(self, quality_engine):
         """Test adding custom validation rules."""
 
-        def check_recent_year(entry: Entry) -> Optional[ValidationResult]:
+        def check_recent_year(entry: Entry) -> ValidationResult | None:
             if hasattr(entry, "year") and entry.year:
                 if entry.year < 2020:
                     return ValidationResult(

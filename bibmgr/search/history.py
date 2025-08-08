@@ -103,7 +103,7 @@ class SearchHistory:
             return []
 
         try:
-            with open(self.history_file, "r") as f:
+            with open(self.history_file) as f:
                 data = json.load(f)
                 return [SearchHistoryEntry.from_dict(item) for item in data]
         except (json.JSONDecodeError, KeyError, ValueError):
@@ -116,7 +116,7 @@ class SearchHistory:
             return {}
 
         try:
-            with open(self.saved_file, "r") as f:
+            with open(self.saved_file) as f:
                 data = json.load(f)
                 return {
                     name: SavedSearch.from_dict(item) for name, item in data.items()

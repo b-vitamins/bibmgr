@@ -10,7 +10,7 @@ from datetime import datetime
 from typing import Protocol
 from urllib.parse import urlparse
 
-from bibmgr.core.models import Entry, EntryType, ValidationError, REQUIRED_FIELDS
+from bibmgr.core.models import REQUIRED_FIELDS, Entry, EntryType, ValidationError
 
 
 class EntryValidator(Protocol):

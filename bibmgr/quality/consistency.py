@@ -13,7 +13,7 @@ import hashlib
 from collections import defaultdict
 from dataclasses import dataclass, field
 from difflib import SequenceMatcher
-from typing import Any, Dict, List, Optional, Set
+from typing import Any
 
 import msgspec
 
@@ -26,10 +26,10 @@ class ConsistencyIssue:
 
     issue_type: str
     severity: ValidationSeverity
-    entries: List[str]  # Entry keys involved
+    entries: list[str]  # Entry keys involved
     message: str
-    suggestion: Optional[str] = None
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    suggestion: str | None = None
+    metadata: dict[str, Any] = field(default_factory=dict)
 
     def __str__(self) -> str:
         """String representation."""
@@ -56,11 +56,11 @@ class ConsistencyReport(msgspec.Struct, frozen=True, kw_only=True):
     """Report of consistency check results."""
 
     total_entries: int
-    issues: List[ConsistencyIssue] = msgspec.field(default_factory=list)
-    orphaned_entries: List[str] = msgspec.field(default_factory=list)
-    duplicate_groups: List[List[str]] = msgspec.field(default_factory=list)
-    broken_references: Dict[str, List[str]] = msgspec.field(default_factory=dict)
-    citation_loops: List[List[str]] = msgspec.field(default_factory=list)
+    issues: list[ConsistencyIssue] = msgspec.field(default_factory=list)
+    orphaned_entries: list[str] = msgspec.field(default_factory=list)
+    duplicate_groups: list[list[str]] = msgspec.field(default_factory=list)
+    broken_references: dict[str, list[str]] = msgspec.field(default_factory=dict)
+    citation_loops: list[list[str]] = msgspec.field(default_factory=list)
 
     @property
     def has_errors(self) -> bool:
@@ -111,7 +111,7 @@ class ConsistencyReport(msgspec.Struct, frozen=True, kw_only=True):
 class CrossReferenceValidator:
     """Validates cross-references between entries."""
 
-    def validate(self, entries: List[Any]) -> List[ConsistencyIssue]:
+    def validate(self, entries: list[Any]) -> list[ConsistencyIssue]:
         """Check cross-references are valid.
 
         Args:
@@ -139,7 +139,7 @@ class CrossReferenceValidator:
 
         return issues
 
-    def detect_loops(self, entries: List[Any]) -> List[List[str]]:
+    def detect_loops(self, entries: list[Any]) -> list[list[str]]:
         """Detect circular cross-references using Tarjan's algorithm.
 
         Args:
@@ -225,7 +225,7 @@ class DuplicateDetector:
         self.title_threshold = title_threshold
         self.use_fuzzy = use_fuzzy
 
-    def find_duplicates(self, entries: List[Any]) -> List[List[str]]:
+    def find_duplicates(self, entries: list[Any]) -> list[list[str]]:
         """Find duplicate entry groups using optimized algorithms.
 
         Args:
@@ -253,7 +253,7 @@ class DuplicateDetector:
 
         return duplicates
 
-    def _find_doi_duplicates(self, entries: List[Any]) -> List[List[str]]:
+    def _find_doi_duplicates(self, entries: list[Any]) -> list[list[str]]:
         """Find entries with duplicate DOIs."""
         doi_map = defaultdict(list)
 
@@ -266,7 +266,7 @@ class DuplicateDetector:
 
         return [keys for keys in doi_map.values() if len(keys) > 1]
 
-    def _normalize_doi(self, doi: str) -> Optional[str]:
+    def _normalize_doi(self, doi: str) -> str | None:
         """Normalize DOI for comparison."""
         if not doi:
             return None
@@ -280,7 +280,7 @@ class DuplicateDetector:
 
         return doi
 
-    def _find_title_duplicates(self, entries: List[Any]) -> List[List[str]]:
+    def _find_title_duplicates(self, entries: list[Any]) -> list[list[str]]:
         """Find entries with similar titles using blocking and fuzzy matching."""
         if not self.use_fuzzy:
             return self._find_exact_title_duplicates(entries)
@@ -300,7 +300,7 @@ class DuplicateDetector:
 
         return duplicates
 
-    def _find_exact_title_duplicates(self, entries: List[Any]) -> List[List[str]]:
+    def _find_exact_title_duplicates(self, entries: list[Any]) -> list[list[str]]:
         """Find entries with exactly matching titles."""
         title_map = defaultdict(list)
 
@@ -313,7 +313,7 @@ class DuplicateDetector:
 
         return [keys for keys in title_map.values() if len(keys) > 1]
 
-    def _create_title_blocks(self, entries: List[Any]) -> Dict[str, List[Any]]:
+    def _create_title_blocks(self, entries: list[Any]) -> dict[str, list[Any]]:
         """Create blocks of potentially similar titles using LSH."""
         blocks = defaultdict(list)
 
@@ -326,7 +326,7 @@ class DuplicateDetector:
 
         return blocks
 
-    def _get_title_signatures(self, title: str) -> List[str]:
+    def _get_title_signatures(self, title: str) -> list[str]:
         """Get hash signatures for title blocking."""
         normalized = self._normalize_title(title)
         if not normalized:
@@ -367,7 +367,7 @@ class DuplicateDetector:
 
         return normalized
 
-    def _find_similar_in_block(self, entries: List[Any]) -> List[List[str]]:
+    def _find_similar_in_block(self, entries: list[Any]) -> list[list[str]]:
         """Find similar titles within a block."""
         groups = []
         processed = set()
@@ -419,10 +419,10 @@ class OrphanDetector:
 
     def find_orphans(
         self,
-        entries: List[Any],
-        collections: Optional[List[Any]] = None,
-        cited_keys: Optional[Set[str]] = None,
-    ) -> List[str]:
+        entries: list[Any],
+        collections: list[Any] | None = None,
+        cited_keys: set[str] | None = None,
+    ) -> list[str]:
         """Find orphaned entries efficiently.
 
         Args:
@@ -492,9 +492,9 @@ class ConsistencyChecker:
 
     def check(
         self,
-        entries: List[Any],
-        collections: Optional[List[Any]] = None,
-        cited_keys: Optional[Set[str]] = None,
+        entries: list[Any],
+        collections: list[Any] | None = None,
+        cited_keys: set[str] | None = None,
     ) -> ConsistencyReport:
         """Run all consistency checks.
 
@@ -604,7 +604,7 @@ class ConsistencyChecker:
             citation_loops=citation_loops,
         )
 
-    def _determine_duplicate_type(self, entries: List[Any], group: List[str]) -> str:
+    def _determine_duplicate_type(self, entries: list[Any], group: list[str]) -> str:
         """Determine the type of duplication."""
         # Get the entries in the group
         entry_map = {e.key: e for e in entries}

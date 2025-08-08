@@ -4,11 +4,12 @@ These tests are implementation-agnostic and focus on the expected behavior
 of search history tracking, saved searches, and analytics.
 """
 
-import pytest
-import tempfile
 import json
+import tempfile
 from datetime import datetime
 from pathlib import Path
+
+import pytest
 
 # Tests are now ready to run
 

@@ -12,7 +12,7 @@ from __future__ import annotations
 import json
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Protocol, Union
+from typing import Any, Protocol
 
 import msgspec
 
@@ -28,15 +28,15 @@ from bibmgr.collections.models import (
 class CollectionRepository(Protocol):
     """Protocol for collection storage."""
 
-    def save(self, collection: Union[Collection, SmartCollection]) -> None:
+    def save(self, collection: Collection | SmartCollection) -> None:
         """Save a collection."""
         ...
 
-    def load(self, collection_id: str) -> Union[Collection, SmartCollection, None]:
+    def load(self, collection_id: str) -> Collection | SmartCollection | None:
         """Load a collection by ID."""
         ...
 
-    def load_all(self) -> list[Union[Collection, SmartCollection]]:
+    def load_all(self) -> list[Collection | SmartCollection]:
         """Load all collections."""
         ...
 
@@ -65,7 +65,7 @@ class FileCollectionRepository:
         self.encoder = msgspec.json.Encoder()
         self.decoder = msgspec.json.Decoder()
 
-    def save(self, collection: Union[Collection, SmartCollection]) -> None:
+    def save(self, collection: Collection | SmartCollection) -> None:
         """Save a collection to disk."""
         path = self.collections_dir / f"{collection.id}.json"
 
@@ -77,7 +77,7 @@ class FileCollectionRepository:
         temp_path.write_text(json.dumps(data, indent=2))
         temp_path.replace(path)
 
-    def load(self, collection_id: str) -> Union[Collection, SmartCollection, None]:
+    def load(self, collection_id: str) -> Collection | SmartCollection | None:
         """Load a collection from disk."""
         path = self.collections_dir / f"{collection_id}.json"
         if not path.exists():
@@ -123,7 +123,7 @@ class FileCollectionRepository:
         except Exception:
             return None
 
-    def load_all(self) -> list[Union[Collection, SmartCollection]]:
+    def load_all(self) -> list[Collection | SmartCollection]:
         """Load all collections from disk."""
         collections = []
         for path in self.collections_dir.glob("*.json"):
@@ -163,7 +163,7 @@ class CollectionManager:
         """
         self.repository = repository
         self.entry_repository = entry_repository
-        self._cache: dict[str, Union[Collection, SmartCollection]] = {}
+        self._cache: dict[str, Collection | SmartCollection] = {}
 
     def create_collection(
         self,
@@ -239,9 +239,7 @@ class CollectionManager:
 
         return collection
 
-    def get_collection(
-        self, collection_id: str
-    ) -> Union[Collection, SmartCollection, None]:
+    def get_collection(self, collection_id: str) -> Collection | SmartCollection | None:
         """Get a collection by ID.
 
         Args:
@@ -259,7 +257,7 @@ class CollectionManager:
 
         return collection
 
-    def get_all_collections(self) -> list[Union[Collection, SmartCollection]]:
+    def get_all_collections(self) -> list[Collection | SmartCollection]:
         """Get all collections.
 
         Returns:
@@ -272,7 +270,7 @@ class CollectionManager:
         collection_id: str,
         name: str | None = None,
         description: str | None = None,
-    ) -> Union[Collection, SmartCollection, None]:
+    ) -> Collection | SmartCollection | None:
         """Update a collection.
 
         Args:
@@ -336,7 +334,7 @@ class CollectionManager:
         self,
         collection_id: str,
         entry_key: str,
-    ) -> Union[Collection, SmartCollection, None]:
+    ) -> Collection | SmartCollection | None:
         """Add an entry to a collection.
 
         Args:
@@ -369,7 +367,7 @@ class CollectionManager:
         self,
         collection_id: str,
         entry_key: str,
-    ) -> Union[Collection, SmartCollection, None]:
+    ) -> Collection | SmartCollection | None:
         """Remove an entry from a collection.
 
         Args:
@@ -400,7 +398,7 @@ class CollectionManager:
         self,
         collection_id: str,
         new_parent_id: str | None,
-    ) -> Union[Collection, SmartCollection, None]:
+    ) -> Collection | SmartCollection | None:
         """Move a collection to a new parent.
 
         Args:

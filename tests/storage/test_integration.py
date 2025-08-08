@@ -26,7 +26,7 @@ def sample_bibtex_file():
     content = """
     @string{ACM = "ACM Press"}
     @string{IEEE = "IEEE Computer Society"}
-    
+
     @article{smith2024ml,
         author = {John Smith and Jane Doe},
         title = {Machine Learning for {NLP}: A Comprehensive Survey},
@@ -36,7 +36,7 @@ def sample_bibtex_file():
         pages = {123--189},
         doi = {10.1234/air.2024.042}
     }
-    
+
     @inproceedings{jones2023attention,
         author = "Robert Jones",
         title = "Attention Mechanisms in Deep Learning",
@@ -45,7 +45,7 @@ def sample_bibtex_file():
         year = 2023,
         pages = "456--467"
     }
-    
+
     @book{williams2022textbook,
         author = {Emily Williams},
         title = {Deep Learning: Theory and Practice},
@@ -54,7 +54,7 @@ def sample_bibtex_file():
         edition = {3rd},
         isbn = {978-0-123456-78-9}
     }
-    
+
     @phdthesis{brown2024thesis,
         author = "Michael Brown",
         title = "Neural Architecture Search for Computer Vision",
@@ -62,7 +62,7 @@ def sample_bibtex_file():
         year = 2024,
         month = "June"
     }
-    
+
     @misc{dataset2024,
         title = "Large-Scale Dataset for NLP Research",
         author = {{Research Team}},

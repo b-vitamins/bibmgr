@@ -14,13 +14,14 @@ from typing import Any
 from diskcache import Cache
 from whoosh import index
 from whoosh.analysis import StemmingAnalyzer
-from whoosh.fields import Schema, TEXT, ID, NUMERIC
+from whoosh.fields import ID, NUMERIC, TEXT, Schema
 from whoosh.qparser import MultifieldParser
 from whoosh.qparser.plugins import FuzzyTermPlugin
 
 from .history import SearchHistory
 from .models import Entry, EntryType, SearchHit, SearchResult
-from .query import QueryParser as CustomQueryParser, QueryField
+from .query import QueryField
+from .query import QueryParser as CustomQueryParser
 
 
 class SearchEngine:

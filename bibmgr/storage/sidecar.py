@@ -16,7 +16,7 @@ import json
 import threading
 import uuid
 from collections import defaultdict
-from dataclasses import dataclass, field, asdict
+from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -299,21 +299,21 @@ class MetadataSidecar:
 
         if version_file.exists():
             try:
-                with open(version_file, "r") as f:
+                with open(version_file) as f:
                     data = json.load(f)
                 current_version = data.get("version", "1.0.0")
 
                 if current_version != self.SCHEMA_VERSION:
                     self.migrate(current_version, self.SCHEMA_VERSION)
 
-            except (json.JSONDecodeError, IOError):
+            except (OSError, json.JSONDecodeError):
                 pass
 
         # Write current version
         try:
             with open(version_file, "w") as f:
                 json.dump({"version": self.SCHEMA_VERSION}, f)
-        except IOError:
+        except OSError:
             pass
 
     def migrate(self, from_version: str, to_version: str) -> None:
@@ -335,7 +335,7 @@ class MetadataSidecar:
         tag_index_file = self.indices_dir / "tags.json"
         if tag_index_file.exists():
             try:
-                with open(tag_index_file, "r") as f:
+                with open(tag_index_file) as f:
                     data = json.load(f)
 
                 # Rebuild index from saved data
@@ -345,7 +345,7 @@ class MetadataSidecar:
                         self.tag_index.entry_to_tags[entry].add(tag)
                         self.tag_index.tag_counts[tag] += 1
 
-            except (json.JSONDecodeError, IOError):
+            except (OSError, json.JSONDecodeError):
                 pass
 
     def _save_indices(self) -> None:
@@ -366,7 +366,7 @@ class MetadataSidecar:
                 json.dump(data, f, indent=2)
             temp_file.replace(tag_index_file)
 
-        except IOError:
+        except OSError:
             pass
 
     def _metadata_path(self, key: str) -> Path:
@@ -397,7 +397,7 @@ class MetadataSidecar:
                 return None
 
             try:
-                with open(path, "r") as f:
+                with open(path) as f:
                     data = json.load(f)
                 metadata = EntryMetadata.from_dict(data)
 
@@ -406,7 +406,7 @@ class MetadataSidecar:
 
                 return metadata
 
-            except (json.JSONDecodeError, IOError, ValidationError):
+            except (OSError, json.JSONDecodeError, ValidationError):
                 return None
 
     def set_metadata(self, metadata: EntryMetadata) -> None:
@@ -441,7 +441,7 @@ class MetadataSidecar:
                 # Save indices
                 self._save_indices()
 
-            except IOError as e:
+            except OSError as e:
                 raise SidecarError(f"Failed to save metadata: {e}") from e
 
     def update_metadata(self, key: str, **fields) -> None:
@@ -477,7 +477,7 @@ class MetadataSidecar:
                     import shutil
 
                     shutil.rmtree(note_dir)
-                except IOError:
+                except OSError:
                     pass
 
             # Delete metadata file
@@ -493,7 +493,7 @@ class MetadataSidecar:
 
                     return True
 
-                except IOError:
+                except OSError:
                     return False
 
             return False
@@ -581,7 +581,7 @@ class MetadataSidecar:
                 json.dump(note.to_dict(), f, indent=2)
             temp_path.replace(path)
 
-        except IOError as e:
+        except OSError as e:
             raise SidecarError(f"Failed to save note: {e}") from e
 
     def get_notes(self, entry_key: str) -> list[Note]:
@@ -593,10 +593,10 @@ class MetadataSidecar:
         notes = []
         for path in note_dir.glob("*.json"):
             try:
-                with open(path, "r") as f:
+                with open(path) as f:
                     data = json.load(f)
                 notes.append(Note.from_dict(data))
-            except (json.JSONDecodeError, IOError, ValidationError):
+            except (OSError, json.JSONDecodeError, ValidationError):
                 continue
 
         # Sort by creation date
@@ -610,10 +610,10 @@ class MetadataSidecar:
             return None
 
         try:
-            with open(path, "r") as f:
+            with open(path) as f:
                 data = json.load(f)
             return Note.from_dict(data)
-        except (json.JSONDecodeError, IOError, ValidationError):
+        except (OSError, json.JSONDecodeError, ValidationError):
             return None
 
     def update_note(self, note: Note) -> bool:
@@ -634,7 +634,7 @@ class MetadataSidecar:
             temp_path.replace(path)
             return True
 
-        except IOError:
+        except OSError:
             return False
 
     def delete_note(self, entry_key: str, note_id: str) -> bool:
@@ -644,7 +644,7 @@ class MetadataSidecar:
             try:
                 path.unlink()
                 return True
-            except IOError:
+            except OSError:
                 return False
         return False
 
@@ -657,14 +657,14 @@ class MetadataSidecar:
             if note_dir.is_dir():
                 for note_file in note_dir.glob("*.json"):
                     try:
-                        with open(note_file, "r") as f:
+                        with open(note_file) as f:
                             data = json.load(f)
 
                         note = Note.from_dict(data)
                         if query_lower in note.content.lower():
                             results.append(note)
 
-                    except (json.JSONDecodeError, IOError, ValidationError):
+                    except (OSError, json.JSONDecodeError, ValidationError):
                         continue
 
         return results
@@ -705,13 +705,13 @@ class MetadataSidecar:
 
         for path in self.entries_dir.glob("*.json"):
             try:
-                with open(path, "r") as f:
+                with open(path) as f:
                     data = json.load(f)
 
                 if status is None or data.get("reading_status") == status:
                     entries.append(data["key"])
 
-            except (json.JSONDecodeError, IOError):
+            except (OSError, json.JSONDecodeError):
                 continue
 
         return entries
@@ -722,14 +722,14 @@ class MetadataSidecar:
 
         for path in self.entries_dir.glob("*.json"):
             try:
-                with open(path, "r") as f:
+                with open(path) as f:
                     data = json.load(f)
 
                 collections = data.get("collections", [])
                 if collection in collections:
                     entries.append(data["key"])
 
-            except (json.JSONDecodeError, IOError):
+            except (OSError, json.JSONDecodeError):
                 continue
 
         return entries
@@ -752,7 +752,7 @@ class MetadataSidecar:
             stats["total_entries"] += 1
 
             try:
-                with open(path, "r") as f:
+                with open(path) as f:
                     data = json.load(f)
 
                 # Rating distribution
@@ -765,7 +765,7 @@ class MetadataSidecar:
                 if status:
                     stats["reading_stats"][status] += 1
 
-            except (json.JSONDecodeError, IOError):
+            except (OSError, json.JSONDecodeError):
                 continue
 
         # Count notes
@@ -787,12 +787,12 @@ class MetadataSidecar:
         # Check metadata files
         for path in self.entries_dir.glob("*.json"):
             try:
-                with open(path, "r") as f:
+                with open(path) as f:
                     data = json.load(f)
                 EntryMetadata.from_dict(data)
             except (json.JSONDecodeError, ValidationError) as e:
                 errors.append(f"Invalid metadata in {path.name}: {e}")
-            except IOError as e:
+            except OSError as e:
                 errors.append(f"Cannot read {path.name}: {e}")
 
         # Check note files
@@ -800,12 +800,12 @@ class MetadataSidecar:
             if note_dir.is_dir():
                 for note_file in note_dir.glob("*.json"):
                     try:
-                        with open(note_file, "r") as f:
+                        with open(note_file) as f:
                             data = json.load(f)
                         Note.from_dict(data)
                     except (json.JSONDecodeError, ValidationError) as e:
                         errors.append(f"Invalid note in {note_file.name}: {e}")
-                    except IOError as e:
+                    except OSError as e:
                         errors.append(f"Cannot read {note_file.name}: {e}")
 
         return len(errors) == 0, errors
@@ -817,7 +817,7 @@ class MetadataSidecar:
 
         for path in self.entries_dir.glob("*.json"):
             try:
-                with open(path, "r") as f:
+                with open(path) as f:
                     data = json.load(f)
                 metadata = EntryMetadata.from_dict(data)
                 entries_metadata[metadata.key] = metadata
@@ -836,9 +836,9 @@ class MetadataSidecar:
         # Export metadata
         for metadata_file in self.entries_dir.glob("*.json"):
             try:
-                with open(metadata_file, "r") as f:
+                with open(metadata_file) as f:
                     export_data["metadata"].append(json.load(f))
-            except (json.JSONDecodeError, IOError):
+            except (OSError, json.JSONDecodeError):
                 continue
 
         # Export notes
@@ -846,16 +846,16 @@ class MetadataSidecar:
             if note_dir.is_dir():
                 for note_file in note_dir.glob("*.json"):
                     try:
-                        with open(note_file, "r") as f:
+                        with open(note_file) as f:
                             export_data["notes"].append(json.load(f))
-                    except (json.JSONDecodeError, IOError):
+                    except (OSError, json.JSONDecodeError):
                         continue
 
         # Write export
         try:
             with open(path, "w") as f:
                 json.dump(export_data, f, indent=2)
-        except IOError as e:
+        except OSError as e:
             raise SidecarError(f"Failed to export metadata: {e}") from e
 
     def import_from(self, path: Path) -> None:
@@ -864,9 +864,9 @@ class MetadataSidecar:
             raise SidecarError(f"Import file does not exist: {path}")
 
         try:
-            with open(path, "r") as f:
+            with open(path) as f:
                 data = json.load(f)
-        except (json.JSONDecodeError, IOError) as e:
+        except (OSError, json.JSONDecodeError) as e:
             raise SidecarError(f"Failed to read import file: {e}") from e
 
         # Import metadata

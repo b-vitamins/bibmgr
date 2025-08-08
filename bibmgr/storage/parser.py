@@ -10,10 +10,11 @@ Features:
 
 from __future__ import annotations
 
+from collections.abc import Iterator
 from dataclasses import dataclass
 from enum import Enum, auto
 from pathlib import Path
-from typing import Any, Iterator, TextIO
+from typing import Any, TextIO
 
 from bibmgr.core.models import Entry, EntryType
 
@@ -853,12 +854,12 @@ class BibtexParser:
     def parse_file(self, path: Path) -> list[Entry]:
         """Parse BibTeX file."""
         try:
-            with open(path, "r", encoding="utf-8") as f:
+            with open(path, encoding="utf-8") as f:
                 return self.parse(f.read())
         except UnicodeDecodeError:
             # Try with latin-1
             try:
-                with open(path, "r", encoding="latin-1") as f:
+                with open(path, encoding="latin-1") as f:
                     return self.parse(f.read())
             except Exception as e:
                 raise ParseError(f"Failed to read file: {e}", 0, 0)

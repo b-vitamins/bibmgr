@@ -1,18 +1,19 @@
 """Comprehensive tests for duplicate detection and merging."""
 
-import pytest
 from typing import Any
+
+import pytest
 
 from bibmgr.core.models import Entry, EntryType
 from bibmgr.operations.duplicates import (
+    AuthorNormalizer,
     DuplicateDetector,
+    DuplicateIndex,
+    EntryMerger,
     MatchType,
+    MergeStrategy,
     StringSimilarity,
     TitleNormalizer,
-    AuthorNormalizer,
-    EntryMerger,
-    MergeStrategy,
-    DuplicateIndex,
 )
 
 

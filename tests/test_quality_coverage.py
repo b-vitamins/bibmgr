@@ -3,7 +3,6 @@
 import tempfile
 from pathlib import Path
 
-
 from bibmgr.core.models import Entry, EntryType
 from bibmgr.quality import (
     # Test additional methods and edge cases
@@ -21,8 +20,8 @@ from bibmgr.quality import (
     FileIssue,
     HTMLReporter,
     IntegrityReport,
-    ISSNValidator,
     ISBNValidator,
+    ISSNValidator,
     JSONReporter,
     MarkdownReporter,
     ORCIDValidator,

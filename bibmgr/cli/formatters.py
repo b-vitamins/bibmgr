@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from rich.console import Console
 from rich.table import Table
@@ -174,7 +174,7 @@ def format_entry_yaml(entry: Entry) -> str:
 
 
 def format_entries_list(
-    entries: List[Entry], format: str = "table", fields: Optional[List[str]] = None
+    entries: list[Entry], format: str = "table", fields: list[str] | None = None
 ) -> str:
     """Format list of entries.
 
@@ -256,7 +256,7 @@ def format_entries_list(
         return console.export_text()
 
 
-def format_stats_table(stats: Dict[str, Any]) -> str:
+def format_stats_table(stats: dict[str, Any]) -> str:
     """Format statistics as a table.
 
     Args:
@@ -301,7 +301,7 @@ def format_stats_table(stats: Dict[str, Any]) -> str:
     return console.export_text()
 
 
-def format_validation_report(report: Dict[str, Any], verbose: bool = False) -> str:
+def format_validation_report(report: dict[str, Any], verbose: bool = False) -> str:
     """Format validation report.
 
     Args:
@@ -355,7 +355,7 @@ def format_validation_report(report: Dict[str, Any], verbose: bool = False) -> s
     return console.export_text()
 
 
-def format_search_results(results: Dict[str, Any], explain: bool = False) -> str:
+def format_search_results(results: dict[str, Any], explain: bool = False) -> str:
     """Format search results.
 
     Args:

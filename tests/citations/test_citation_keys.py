@@ -1,16 +1,17 @@
 """Comprehensive tests for citation key generation."""
 
-import pytest
-from unittest.mock import Mock, AsyncMock
+from unittest.mock import AsyncMock, Mock
 
-from bibmgr.core.models import Entry, EntryType
+import pytest
+
 from bibmgr.citations.keys import (
-    CitationKeyGenerator,
-    KeyPattern,
-    KeyCollisionStrategy,
-    KeyValidator,
     AsyncKeyGenerator,
+    CitationKeyGenerator,
+    KeyCollisionStrategy,
+    KeyPattern,
+    KeyValidator,
 )
+from bibmgr.core.models import Entry, EntryType
 
 
 class TestKeyPattern:

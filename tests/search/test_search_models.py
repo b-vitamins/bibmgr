@@ -4,8 +4,9 @@ These tests are implementation-agnostic and focus on the expected behavior
 and data contracts of search models.
 """
 
-import pytest
 from pathlib import Path
+
+import pytest
 
 # Tests are now ready to run
 
@@ -131,6 +132,7 @@ class TestEntry:
     def test_entry_serialization(self):
         """Entry should be serializable with msgspec."""
         import msgspec
+
         from bibmgr.search.models import Entry, EntryType
 
         entry = Entry(
@@ -380,6 +382,7 @@ class TestModelIntegration:
     def test_serialization_roundtrip(self):
         """Test serialization of all models."""
         import msgspec
+
         from bibmgr.search.models import Entry, EntryType
 
         entry = Entry(

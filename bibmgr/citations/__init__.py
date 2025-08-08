@@ -6,36 +6,36 @@ APA, MLA, Chicago, IEEE, and custom CSL styles.
 """
 
 from bibmgr.citations.keys import (
-    CitationKeyGenerator,
-    KeyPattern,
-    KeyCollisionStrategy,
-    KeyValidator,
     AsyncKeyGenerator,
+    CitationKeyGenerator,
+    KeyCollisionStrategy,
+    KeyPattern,
+    KeyValidator,
 )
 from bibmgr.citations.parser import (
+    AsyncCitationProcessor,
+    BibLaTeXParser,
     Citation,
     CitationCommand,
+    CitationExtractor,
     CitationParser,
     CitationProcessor,
     LaTeXParser,
-    BibLaTeXParser,
     MarkdownParser,
-    CitationExtractor,
-    AsyncCitationProcessor,
 )
 from bibmgr.citations.styles import (
+    APAStyle,
+    AuthorFormatter,
+    ChicagoStyle,
     CitationFormatter,
     CitationStyle,
-    StyleOptions,
-    APAStyle,
-    MLAStyle,
-    ChicagoStyle,
-    IEEEStyle,
     CSLStyle,
-    StyleRegistry,
-    FormattingCache,
-    AuthorFormatter,
     DateFormatter,
+    FormattingCache,
+    IEEEStyle,
+    MLAStyle,
+    StyleOptions,
+    StyleRegistry,
     TitleFormatter,
 )
 

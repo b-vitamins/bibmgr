@@ -1,8 +1,9 @@
 """Shared fixtures for operations tests."""
 
 import tempfile
+from collections.abc import Iterator
 from pathlib import Path
-from typing import Iterator, Any
+from typing import Any
 
 import pytest
 

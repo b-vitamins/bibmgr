@@ -3,36 +3,35 @@
 from __future__ import annotations
 
 import json
-from typing import Optional, Tuple
 
 import click
 
+from bibmgr.collections.manager import CollectionManager, FileCollectionRepository
+from bibmgr.collections.tags import TagManager
 from bibmgr.core.models import Entry, EntryType
 from bibmgr.operations.crud import EntryOperations
 from bibmgr.storage.backend import FileSystemStorage
-from bibmgr.collections.manager import CollectionManager, FileCollectionRepository
-from bibmgr.collections.tags import TagManager
 
 from ..config import get_config
 from ..formatters import (
-    format_entry_table,
+    format_entries_list,
     format_entry_bibtex,
     format_entry_json,
+    format_entry_table,
     format_entry_yaml,
-    format_entries_list,
 )
 from ..helpers import (
-    parse_field_assignments,
-    filter_entries,
-    sort_entries,
     confirm_action,
+    filter_entries,
     handle_error,
+    parse_field_assignments,
+    sort_entries,
 )
 from ..output import (
-    print_success,
     print_error,
-    print_warning,
     print_json,
+    print_success,
+    print_warning,
 )
 from ..validators import (
     validate_entry_key,
@@ -250,7 +249,7 @@ def _interactive_add(initial: dict) -> dict:
 def edit(
     ctx: click.Context,
     key: str,
-    field: Tuple[str, ...],
+    field: tuple[str, ...],
     interactive: bool,
     validate: bool,
     dry_run: bool,
@@ -343,7 +342,7 @@ def _interactive_edit(entry: Entry) -> dict:
 @click.option("--force", "-f", is_flag=True, help="Skip confirmation")
 @click.option("--cascade", is_flag=True, help="Remove related data")
 @click.pass_context
-def delete(ctx: click.Context, keys: Tuple[str, ...], force: bool, cascade: bool):
+def delete(ctx: click.Context, keys: tuple[str, ...], force: bool, cascade: bool):
     """Delete one or more entries."""
     try:
         storage = get_storage()
@@ -426,9 +425,9 @@ def delete(ctx: click.Context, keys: Tuple[str, ...], force: bool, cascade: bool
 @click.pass_context
 def show(
     ctx: click.Context,
-    keys: Tuple[str, ...],
+    keys: tuple[str, ...],
     format: str,
-    fields: Optional[str],
+    fields: str | None,
     syntax: bool,
 ):
     """Display one or more entries."""
@@ -447,6 +446,7 @@ def show(
                 output = format_entry_json(entry)
                 if syntax:
                     from rich.syntax import Syntax
+
                     from ..output import console
 
                     if console:
@@ -458,6 +458,7 @@ def show(
                 output = format_entry_yaml(entry)
                 if syntax:
                     from rich.syntax import Syntax
+
                     from ..output import console
 
                     if console:
@@ -469,6 +470,7 @@ def show(
                 output = format_entry_bibtex(entry)
                 if syntax:
                     from rich.syntax import Syntax
+
                     from ..output import console
 
                     if console:

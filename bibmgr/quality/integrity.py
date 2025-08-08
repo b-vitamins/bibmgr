@@ -16,7 +16,7 @@ from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 import msgspec
 
@@ -31,8 +31,8 @@ class FileIssue:
     file_path: str
     issue_type: str
     message: str
-    suggestion: Optional[str] = None
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    suggestion: str | None = None
+    metadata: dict[str, Any] = field(default_factory=dict)
 
     def to_string(self) -> str:
         """Format as human-readable string."""
@@ -49,11 +49,11 @@ class IntegrityReport(msgspec.Struct, frozen=True, kw_only=True):
 
     total_files: int
     valid_files: int
-    missing_files: List[FileIssue] = msgspec.field(default_factory=list)
-    corrupted_files: List[FileIssue] = msgspec.field(default_factory=list)
-    permission_issues: List[FileIssue] = msgspec.field(default_factory=list)
-    path_issues: List[FileIssue] = msgspec.field(default_factory=list)
-    backup_status: Dict[str, Any] = msgspec.field(default_factory=dict)
+    missing_files: list[FileIssue] = msgspec.field(default_factory=list)
+    corrupted_files: list[FileIssue] = msgspec.field(default_factory=list)
+    permission_issues: list[FileIssue] = msgspec.field(default_factory=list)
+    path_issues: list[FileIssue] = msgspec.field(default_factory=list)
+    backup_status: dict[str, Any] = msgspec.field(default_factory=dict)
 
     @property
     def has_issues(self) -> bool:
@@ -173,7 +173,7 @@ class PDFValidator:
                 severity=ValidationSeverity.ERROR,
             )
 
-        metadata: Dict[str, Any] = {"size": size}
+        metadata: dict[str, Any] = {"size": size}
 
         try:
             # Check PDF magic bytes
@@ -254,9 +254,9 @@ class PDFValidator:
                 severity=ValidationSeverity.ERROR,
             )
 
-    def _check_structure(self, file_path: Path) -> Dict[str, Any]:
+    def _check_structure(self, file_path: Path) -> dict[str, Any]:
         """Check PDF internal structure."""
-        info: Dict[str, Any] = {"valid": False}
+        info: dict[str, Any] = {"valid": False}
 
         try:
             with open(file_path, "rb") as f:
@@ -289,9 +289,9 @@ class PDFValidator:
 
         return info
 
-    def _check_text_extraction(self, file_path: Path) -> Dict[str, Any]:
+    def _check_text_extraction(self, file_path: Path) -> dict[str, Any]:
         """Check if text can be extracted from PDF."""
-        info: Dict[str, Any] = {"extractable": False, "pages": 0}
+        info: dict[str, Any] = {"extractable": False, "pages": 0}
 
         try:
             with open(file_path, "rb") as f:
@@ -339,7 +339,7 @@ class BackupVerifier:
         """
         self.backup_dir = Path(backup_dir)
 
-    def verify_backup(self, backup_name: str) -> Dict[str, Any]:
+    def verify_backup(self, backup_name: str) -> dict[str, Any]:
         """Verify a backup.
 
         Args:
@@ -380,7 +380,7 @@ class BackupVerifier:
 
         return results
 
-    def find_latest_backup(self) -> Optional[Path]:
+    def find_latest_backup(self) -> Path | None:
         """Find the most recent backup."""
         if not self.backup_dir.exists():
             return None
@@ -393,7 +393,7 @@ class BackupVerifier:
         backups.sort(key=lambda p: p.stat().st_mtime, reverse=True)
         return backups[0]
 
-    def check_backup_age(self) -> Dict[str, Any]:
+    def check_backup_age(self) -> dict[str, Any]:
         """Check age of latest backup."""
         latest = self.find_latest_backup()
 
@@ -419,7 +419,7 @@ class FileIntegrityChecker:
 
     def __init__(
         self,
-        base_path: Optional[Path] = None,
+        base_path: Path | None = None,
         async_mode: bool = False,
         batch_size: int = 50,
         max_workers: int = 4,
@@ -446,7 +446,7 @@ class FileIntegrityChecker:
         if self.executor:
             self.executor.shutdown(wait=False)
 
-    def check_entry_files(self, entry: Any) -> List[FileIssue]:
+    def check_entry_files(self, entry: Any) -> list[FileIssue]:
         """Check files for a single entry.
 
         Args:
@@ -471,7 +471,7 @@ class FileIntegrityChecker:
 
     def _check_bibtex_file_field(
         self, entry_key: str, file_field: str
-    ) -> List[FileIssue]:
+    ) -> list[FileIssue]:
         """Check BibTeX file field format.
 
         Args:
@@ -521,7 +521,7 @@ class FileIntegrityChecker:
 
         return issues
 
-    def _check_pdf_path(self, entry_key: str, path_str: str) -> List[FileIssue]:
+    def _check_pdf_path(self, entry_key: str, path_str: str) -> list[FileIssue]:
         """Check a PDF file path.
 
         Args:
@@ -591,7 +591,7 @@ class FileIntegrityChecker:
 
         return issues
 
-    def check_all_entries(self, entries: List[Any]) -> IntegrityReport:
+    def check_all_entries(self, entries: list[Any]) -> IntegrityReport:
         """Check files for all entries synchronously.
 
         Args:
@@ -632,7 +632,7 @@ class FileIntegrityChecker:
 
         return self._create_report(all_issues, total_files, valid_files)
 
-    async def check_all_entries_async(self, entries: List[Any]) -> IntegrityReport:
+    async def check_all_entries_async(self, entries: list[Any]) -> IntegrityReport:
         """Check files for all entries asynchronously.
 
         Args:
@@ -667,8 +667,8 @@ class FileIntegrityChecker:
         return self._create_report(all_issues, total_files, valid_files)
 
     async def _check_batch_async(
-        self, batch: List[Any]
-    ) -> Tuple[List[FileIssue], int, int]:
+        self, batch: list[Any]
+    ) -> tuple[list[FileIssue], int, int]:
         """Check a batch of entries asynchronously."""
         loop = asyncio.get_event_loop()
 
@@ -701,7 +701,7 @@ class FileIntegrityChecker:
         return await loop.run_in_executor(self.executor, check_batch)
 
     def _create_report(
-        self, all_issues: List[FileIssue], total_files: int, valid_files: int
+        self, all_issues: list[FileIssue], total_files: int, valid_files: int
     ) -> IntegrityReport:
         """Create integrity report from issues."""
         # Categorize issues
@@ -731,7 +731,7 @@ class FileIntegrityChecker:
 
     def compute_checksum(
         self, file_path: Path, algorithm: str = "sha256"
-    ) -> Optional[str]:
+    ) -> str | None:
         """Compute checksum of a file.
 
         Args:

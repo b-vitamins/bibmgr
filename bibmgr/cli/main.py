@@ -4,19 +4,18 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
-from typing import Optional
 
 import click
 
 from .commands import (
-    entry_commands,
     advanced_commands,
     collection_commands,
-    tag_commands,
+    entry_commands,
     search_commands,
+    tag_commands,
 )
 from .config import get_config
-from .output import console, OutputContext
+from .output import OutputContext, console
 
 
 @click.group()
@@ -29,7 +28,7 @@ from .output import console, OutputContext
 @click.pass_context
 def cli(
     ctx: click.Context,
-    config: Optional[str],
+    config: str | None,
     quiet: bool,
     verbose: bool,
     no_color: bool,

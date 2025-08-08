@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any, Optional
+from typing import Any
 
 from bibmgr.core.models import Entry
 from bibmgr.notes.exceptions import (
@@ -55,7 +55,7 @@ class NoteTemplate:
 
     def render(
         self,
-        entry: Optional[Entry] = None,
+        entry: Entry | None = None,
         **variables: Any,
     ) -> tuple[str, str]:
         """Render template with variables.
@@ -127,19 +127,19 @@ DEFAULT_TEMPLATES = [
 **Date**: {date}
 
 ### Main Points
-- 
+-
 
 ### Key Findings
-- 
+-
 
 ### Methodology
-- 
+-
 
 ### Conclusions
-- 
+-
 
 ### Relevance to My Research
-- 
+-
 """,
         tags=["summary"],
         description="Comprehensive summary of a paper",
@@ -154,22 +154,22 @@ DEFAULT_TEMPLATES = [
 **Date**: {date}
 
 ### Strengths
-- 
+-
 
 ### Weaknesses
-- 
+-
 
 ### Methodological Issues
-- 
+-
 
 ### Alternative Interpretations
-- 
+-
 
 ### Suggestions for Improvement
-- 
+-
 
 ### Overall Assessment
-- 
+-
 """,
         tags=["critique", "analysis"],
         description="Critical analysis of a paper",
@@ -184,22 +184,22 @@ DEFAULT_TEMPLATES = [
 **Date**: {date}
 
 ### The Idea
-- 
+-
 
 ### Motivation
-- 
+-
 
 ### Potential Approach
-- 
+-
 
 ### Expected Outcomes
-- 
+-
 
 ### Resources Needed
-- 
+-
 
 ### Next Steps
-- [ ] 
+- [ ]
 """,
         tags=["idea", "research"],
         description="Research idea inspired by a paper",
@@ -214,24 +214,24 @@ DEFAULT_TEMPLATES = [
 **Date**: {date}
 
 ### Method Overview
-- 
+-
 
 ### Data Collection
-- **Sample Size**: 
-- **Sampling Method**: 
-- **Data Sources**: 
+- **Sample Size**:
+- **Sampling Method**:
+- **Data Sources**:
 
 ### Analysis Techniques
-- 
+-
 
 ### Statistical Tests
-- 
+-
 
 ### Limitations
-- 
+-
 
 ### Applicability to My Work
-- 
+-
 """,
         tags=["methodology", "methods"],
         description="Detailed methodology notes",
@@ -250,13 +250,13 @@ DEFAULT_TEMPLATES = [
 {summary}
 
 ### Contributions
-- 
+-
 
 ### Strengths
-- 
+-
 
 ### Weaknesses
-- 
+-
 
 ### Technical Quality
 - **Clarity**: /5
@@ -267,22 +267,22 @@ DEFAULT_TEMPLATES = [
 ### Detailed Comments
 
 #### Introduction
-- 
+-
 
 #### Related Work
-- 
+-
 
 #### Methodology
-- 
+-
 
 #### Results
-- 
+-
 
 #### Discussion
-- 
+-
 
 ### Questions for Authors
-- 
+-
 
 ### Recommendation
 - [ ] Accept
@@ -305,30 +305,30 @@ DEFAULT_TEMPLATES = [
 **Date**: {date}
 
 ### First Impressions
-- 
+-
 
 ### Page-by-Page Notes
 
 #### Introduction
-- 
+-
 
 #### Methods
-- 
+-
 
 #### Results
-- 
+-
 
 #### Discussion
-- 
+-
 
 #### Conclusion
-- 
+-
 
 ### Questions
-- 
+-
 
 ### To Follow Up
-- [ ] 
+- [ ]
 """,
         tags=["reading-notes"],
         description="General reading notes",
@@ -343,26 +343,26 @@ DEFAULT_TEMPLATES = [
 **Date**: {date}
 
 ### Contribution to Field
-- 
+-
 
 ### Relation to Other Work
-- 
+-
 
 ### Theoretical Framework
-- 
+-
 
 ### Empirical Evidence
-- 
+-
 
 ### Gaps Identified
-- 
+-
 
 ### Future Directions Suggested
-- 
+-
 
 ### Relevance to My Literature Review
-- **Section**: 
-- **Key Point**: 
+- **Section**:
+- **Key Point**:
 """,
         tags=["literature-review", "reference"],
         description="Literature review notes",
@@ -385,20 +385,20 @@ DEFAULT_TEMPLATES = [
 
 **Date**: {date}
 **Paper Discussed**: {entry_key}
-**Attendees**: 
+**Attendees**:
 
 ### Discussion Points
-- 
+-
 
 ### Action Items
-- [ ] 
+- [ ]
 
 ### Decisions Made
-- 
+-
 
 ### Next Meeting
-- **Date**: 
-- **Topics**: 
+- **Date**:
+- **Topics**:
 """,
         tags=["meeting"],
         description="Meeting notes about a paper",
@@ -413,21 +413,21 @@ DEFAULT_TEMPLATES = [
 **Date**: {date}
 
 ### Main Questions
-1. 
-2. 
-3. 
+1.
+2.
+3.
 
 ### Context
-- 
+-
 
 ### Possible Answers
-- 
+-
 
 ### People to Ask
-- 
+-
 
 ### References to Check
-- 
+-
 """,
         tags=["question"],
         description="Questions about a paper",
@@ -443,15 +443,15 @@ DEFAULT_TEMPLATES = [
 **Priority**: High/Medium/Low
 
 ### Tasks
-- [ ] 
-- [ ] 
-- [ ] 
+- [ ]
+- [ ]
+- [ ]
 
 ### Deadline
-- 
+-
 
 ### Notes
-- 
+-
 """,
         tags=["todo", "action"],
         description="Action items related to a paper",
@@ -540,7 +540,7 @@ class TemplateManager:
     def create_note_content(
         self,
         template_name: str,
-        entry: Optional[Entry] = None,
+        entry: Entry | None = None,
         **variables: Any,
     ) -> tuple[str, str, NoteType, list[str]]:
         """Create note content from template.

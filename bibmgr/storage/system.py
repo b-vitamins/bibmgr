@@ -13,14 +13,15 @@ from __future__ import annotations
 import hashlib
 import json
 import shutil
+from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Any, Iterator
+from typing import Any
 
 from bibmgr.core.models import Entry, EntryType
 from bibmgr.storage.backend import FileSystemStorage, Transaction
 from bibmgr.storage.parser import BibtexParser
-from bibmgr.storage.sidecar import MetadataSidecar, EntryMetadata, Note
+from bibmgr.storage.sidecar import EntryMetadata, MetadataSidecar, Note
 
 
 class StorageSystem:
@@ -376,7 +377,7 @@ class StorageSystem:
         # Placeholder for legacy import
         # Would handle old formats
         try:
-            with open(path, "r") as f:
+            with open(path) as f:
                 data = json.load(f)
 
             # Convert old format

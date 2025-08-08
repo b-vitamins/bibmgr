@@ -5,9 +5,10 @@ from __future__ import annotations
 import logging
 import re
 from collections import defaultdict
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Protocol, Callable, Any
+from typing import Any, Protocol
 
 import msgspec
 

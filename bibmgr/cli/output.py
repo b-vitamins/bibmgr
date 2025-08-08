@@ -3,12 +3,11 @@
 from __future__ import annotations
 
 import json
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import click
 from rich.console import Console
 from rich.table import Table
-
 
 # Global console instance
 console = Console()
@@ -58,7 +57,7 @@ def print_info(message: str) -> None:
 
 
 def print_table(
-    headers: List[str], rows: List[List[str]], title: Optional[str] = None
+    headers: list[str], rows: list[list[str]], title: str | None = None
 ) -> None:
     """Print a table.
 
@@ -90,7 +89,7 @@ def print_json(data: Any, indent: int = 2) -> None:
     print(json_str)
 
 
-def print_list(items: List[str], bullet: str = "•", indent: int = 2) -> None:
+def print_list(items: list[str], bullet: str = "•", indent: int = 2) -> None:
     """Print a bulleted list.
 
     Args:
@@ -104,7 +103,7 @@ def print_list(items: List[str], bullet: str = "•", indent: int = 2) -> None:
         console.print(f"{indent_str}{bullet} {item}")
 
 
-def print_dict(data: Dict[str, Any], indent: int = 0) -> None:
+def print_dict(data: dict[str, Any], indent: int = 0) -> None:
     """Print a dictionary as key-value pairs.
 
     Args:
@@ -128,7 +127,7 @@ def print_dict(data: Dict[str, Any], indent: int = 0) -> None:
             console.print(f"{indent_str}{key}: {value}")
 
 
-def print_progress(current: int, total: int, description: Optional[str] = None) -> None:
+def print_progress(current: int, total: int, description: str | None = None) -> None:
     """Print progress indicator.
 
     Args:
@@ -159,9 +158,9 @@ def confirm(message: str, default: bool = False, abort: bool = False) -> bool:
 
 def prompt(
     message: str,
-    default: Optional[str] = None,
+    default: str | None = None,
     hide_input: bool = False,
-    type: Optional[type] = None,
+    type: type | None = None,
 ) -> Any:
     """Prompt for input.
 
@@ -177,7 +176,7 @@ def prompt(
     return click.prompt(message, default=default, hide_input=hide_input, type=type)
 
 
-def choose(message: str, choices: List[str], default: Optional[str] = None) -> str:
+def choose(message: str, choices: list[str], default: str | None = None) -> str:
     """Choose from options.
 
     Args:

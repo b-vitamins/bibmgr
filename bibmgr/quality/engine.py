@@ -14,15 +14,16 @@ import asyncio
 import hashlib
 import json
 from collections import OrderedDict, defaultdict
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum, auto
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Set, Tuple
+from typing import Any
 
 import msgspec
 
-from bibmgr.core.models import Entry, EntryType, REQUIRED_FIELDS
+from bibmgr.core.models import REQUIRED_FIELDS, Entry, EntryType
 from bibmgr.quality.consistency import ConsistencyChecker, ConsistencyReport
 from bibmgr.quality.integrity import FileIntegrityChecker, IntegrityReport
 from bibmgr.quality.validators import (
@@ -30,8 +31,8 @@ from bibmgr.quality.validators import (
     AuthorValidator,
     DateValidator,
     DOIValidator,
-    ISSNValidator,
     ISBNValidator,
+    ISSNValidator,
     ORCIDValidator,
     PageRangeValidator,
     URLValidator,
@@ -57,12 +58,12 @@ class ValidationRule:
 
     name: str
     rule_type: RuleType
-    field: Optional[str] = None
+    field: str | None = None
     validator: Any = None
-    condition: Optional[Callable[[Entry], bool]] = None
+    condition: Callable[[Entry], bool] | None = None
     severity: ValidationSeverity = ValidationSeverity.ERROR
-    message: Optional[str] = None
-    description: Optional[str] = None
+    message: str | None = None
+    description: str | None = None
 
     def applies_to(self, entry: Entry) -> bool:
         """Check if rule applies to an entry."""
@@ -70,7 +71,7 @@ class ValidationRule:
             return self.condition(entry)
         return True
 
-    def validate(self, entry: Entry) -> Optional[ValidationResult]:
+    def validate(self, entry: Entry) -> ValidationResult | None:
         """Validate an entry against this rule."""
         if not self.applies_to(entry):
             return None
@@ -112,15 +113,15 @@ class RuleSet:
     """A set of validation rules."""
 
     name: str
-    description: Optional[str] = None
-    rules: List[ValidationRule] = field(default_factory=list)
+    description: str | None = None
+    rules: list[ValidationRule] = field(default_factory=list)
     enabled: bool = True
 
     def add_rule(self, rule: ValidationRule) -> None:
         """Add a rule to the set."""
         self.rules.append(rule)
 
-    def validate(self, entry: Entry) -> List[ValidationResult]:
+    def validate(self, entry: Entry) -> list[ValidationResult]:
         """Validate an entry against all rules."""
         if not self.enabled:
             return []
@@ -137,7 +138,7 @@ class RuleSet:
 class CorrelationValidator:
     """Validates correlations between fields."""
 
-    def validate(self, entry: Entry) -> List[ValidationResult]:
+    def validate(self, entry: Entry) -> list[ValidationResult]:
         """Check field correlations for an entry."""
         results = []
 
@@ -224,7 +225,7 @@ class ValidationCache:
             max_size: Maximum number of cached entries
         """
         self.max_size = max_size
-        self.cache: OrderedDict[str, Tuple[List[ValidationResult], datetime]] = (
+        self.cache: OrderedDict[str, tuple[list[ValidationResult], datetime]] = (
             OrderedDict()
         )
         self.hits = 0
@@ -237,7 +238,7 @@ class ValidationCache:
         json_str = json.dumps(data, sort_keys=True)
         return hashlib.md5(json_str.encode()).hexdigest()
 
-    def get(self, entry: Entry) -> Optional[List[ValidationResult]]:
+    def get(self, entry: Entry) -> list[ValidationResult] | None:
         """Get cached results for an entry."""
         key = self._get_key(entry)
 
@@ -258,7 +259,7 @@ class ValidationCache:
         self.misses += 1
         return None
 
-    def put(self, entry: Entry, results: List[ValidationResult]) -> None:
+    def put(self, entry: Entry, results: list[ValidationResult]) -> None:
         """Cache validation results for an entry."""
         key = self._get_key(entry)
 
@@ -288,8 +289,8 @@ class QualityMetrics(msgspec.Struct, frozen=True, kw_only=True):
     valid_entries: int
     entries_with_errors: int
     entries_with_warnings: int
-    field_completeness: Dict[str, float] = msgspec.field(default_factory=dict)
-    common_issues: Dict[str, int] = msgspec.field(default_factory=dict)
+    field_completeness: dict[str, float] = msgspec.field(default_factory=dict)
+    common_issues: dict[str, int] = msgspec.field(default_factory=dict)
     quality_score: float = 0.0
 
     def to_summary(self) -> str:
@@ -328,12 +329,12 @@ class QualityReport(msgspec.Struct, frozen=True, kw_only=True):
 
     metrics: QualityMetrics
     timestamp: datetime = msgspec.field(default_factory=datetime.now)
-    validation_results: Dict[str, List[ValidationResult]] = msgspec.field(
+    validation_results: dict[str, list[ValidationResult]] = msgspec.field(
         default_factory=dict
     )
-    consistency_report: Optional[ConsistencyReport] = None
-    integrity_report: Optional[IntegrityReport] = None
-    cache_stats: Optional[Dict[str, Any]] = None
+    consistency_report: ConsistencyReport | None = None
+    integrity_report: IntegrityReport | None = None
+    cache_stats: dict[str, Any] | None = None
 
     @property
     def has_errors(self) -> bool:
@@ -399,7 +400,7 @@ class QualityEngine:
 
     def __init__(
         self,
-        base_path: Optional[Path] = None,
+        base_path: Path | None = None,
         enable_cache: bool = False,
         cache_size: int = 1000,
         async_mode: bool = False,
@@ -439,9 +440,9 @@ class QualityEngine:
 
         # Initialize rule sets
         self.rule_sets = self._create_default_rule_sets()
-        self.custom_rules: List[ValidationRule] = []
+        self.custom_rules: list[ValidationRule] = []
 
-    def _create_default_rule_sets(self) -> Dict[str, RuleSet]:
+    def _create_default_rule_sets(self) -> dict[str, RuleSet]:
         """Create default validation rule sets."""
         rule_sets = {}
 
@@ -518,9 +519,9 @@ class QualityEngine:
     def add_custom_rule(
         self,
         name: str,
-        validator: Callable[[Entry], Optional[ValidationResult]],
-        condition: Optional[Callable[[Entry], bool]] = None,
-        description: Optional[str] = None,
+        validator: Callable[[Entry], ValidationResult | None],
+        condition: Callable[[Entry], bool] | None = None,
+        description: str | None = None,
     ) -> None:
         """Add a custom validation rule."""
         rule = ValidationRule(
@@ -542,7 +543,7 @@ class QualityEngine:
         if name in self.rule_sets:
             self.rule_sets[name].enabled = False
 
-    def check_entry(self, entry: Entry) -> List[ValidationResult]:
+    def check_entry(self, entry: Entry) -> list[ValidationResult]:
         """Check a single entry."""
         # Check cache
         if self.enable_cache and self.cache:
@@ -577,11 +578,11 @@ class QualityEngine:
 
     def check_all(
         self,
-        entries: List[Entry],
+        entries: list[Entry],
         check_consistency: bool = True,
         check_integrity: bool = True,
-        collections: Optional[List[Any]] = None,
-        cited_keys: Optional[Set[str]] = None,
+        collections: list[Any] | None = None,
+        cited_keys: set[str] | None = None,
     ) -> QualityReport:
         """Run complete quality check."""
         # Validate each entry
@@ -658,11 +659,11 @@ class QualityEngine:
 
     async def check_all_async(
         self,
-        entries: List[Entry],
+        entries: list[Entry],
         check_consistency: bool = True,
         check_integrity: bool = True,
-        collections: Optional[List[Any]] = None,
-        cited_keys: Optional[Set[str]] = None,
+        collections: list[Any] | None = None,
+        cited_keys: set[str] | None = None,
     ) -> QualityReport:
         """Run complete quality check asynchronously."""
         if not self.async_mode:
@@ -750,16 +751,16 @@ class QualityEngine:
             cache_stats=cache_stats,
         )
 
-    async def _check_entry_async(self, entry: Entry) -> List[ValidationResult]:
+    async def _check_entry_async(self, entry: Entry) -> list[ValidationResult]:
         """Check entry asynchronously."""
         loop = asyncio.get_event_loop()
         return await loop.run_in_executor(None, self.check_entry, entry)
 
     async def _check_consistency_async(
         self,
-        entries: List[Entry],
-        collections: Optional[List[Any]],
-        cited_keys: Optional[Set[str]],
+        entries: list[Entry],
+        collections: list[Any] | None,
+        cited_keys: set[str] | None,
     ) -> ConsistencyReport:
         """Check consistency asynchronously."""
         loop = asyncio.get_event_loop()
@@ -767,7 +768,7 @@ class QualityEngine:
             None, self.consistency_checker.check, entries, collections, cited_keys
         )
 
-    def _calculate_field_completeness(self, entries: List[Entry]) -> Dict[str, float]:
+    def _calculate_field_completeness(self, entries: list[Entry]) -> dict[str, float]:
         """Calculate field completeness percentages."""
         if not entries:
             return {}

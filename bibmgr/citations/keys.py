@@ -5,9 +5,10 @@ from __future__ import annotations
 import asyncio
 import re
 import unicodedata
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import Enum, auto
-from typing import Callable, Protocol, Any
+from typing import Any, Protocol
 
 from bibmgr.core.models import Entry
 

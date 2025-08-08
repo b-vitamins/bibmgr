@@ -5,19 +5,19 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any
 
 
 class Config:
     """CLI configuration handler."""
 
-    def __init__(self, config_file: Optional[Path] = None):
+    def __init__(self, config_file: Path | None = None):
         """Initialize configuration.
 
         Args:
             config_file: Optional path to config file
         """
-        self._config: Dict[str, Any] = {}
+        self._config: dict[str, Any] = {}
         self._load_defaults()
         self._load_from_file(config_file)
         self._load_from_env()
@@ -66,7 +66,7 @@ class Config:
         bibmgr_dir.mkdir(parents=True, exist_ok=True)
         return str(bibmgr_dir / "bibliography.db")
 
-    def _load_from_file(self, config_file: Optional[Path] = None) -> None:
+    def _load_from_file(self, config_file: Path | None = None) -> None:
         """Load configuration from file.
 
         Args:
@@ -83,7 +83,7 @@ class Config:
                 with open(config_file) as f:
                     file_config = json.load(f)
                 self._merge_config(file_config)
-            except (json.JSONDecodeError, IOError):
+            except (OSError, json.JSONDecodeError):
                 pass  # Use defaults if config file is invalid
 
     def _load_from_env(self) -> None:
@@ -117,7 +117,7 @@ class Config:
                     self._config[section] = {}
                 self._config[section][key] = value
 
-    def _merge_config(self, new_config: Dict[str, Any]) -> None:
+    def _merge_config(self, new_config: dict[str, Any]) -> None:
         """Merge new configuration with existing.
 
         Args:
@@ -186,7 +186,7 @@ class Config:
             self._config[section] = {}
         self._config[section][key] = value
 
-    def save(self, config_file: Optional[Path] = None) -> None:
+    def save(self, config_file: Path | None = None) -> None:
         """Save configuration to file.
 
         Args:
@@ -205,7 +205,7 @@ class Config:
 
 
 # Global configuration instance
-_config: Optional[Config] = None
+_config: Config | None = None
 
 
 def get_config() -> Config:

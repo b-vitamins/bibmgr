@@ -2,15 +2,15 @@
 
 from __future__ import annotations
 
-from .main import cli
-from .config import Config
 from .commands import (
-    entry_commands,
     advanced_commands,
     collection_commands,
-    tag_commands,
+    entry_commands,
     search_commands,
+    tag_commands,
 )
+from .config import Config
+from .main import cli
 
 __all__ = [
     "cli",

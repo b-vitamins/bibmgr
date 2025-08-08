@@ -143,10 +143,10 @@ def sample_template_data():
 {summary}
 
 ### Strengths
-- 
+-
 
 ### Weaknesses
-- 
+-
 
 ### Verdict
 """,

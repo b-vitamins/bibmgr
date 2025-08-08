@@ -13,10 +13,10 @@ from __future__ import annotations
 import json
 import sqlite3
 import threading
+from collections.abc import Iterator
 from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
-from typing import Iterator, Optional
 
 from bibmgr.notes.exceptions import (
     OptimisticLockError,
@@ -303,7 +303,7 @@ class NoteStorage:
                 else:
                     raise StorageError(f"Database integrity error: {e}")
 
-    def get_note(self, note_id: str) -> Optional[Note]:
+    def get_note(self, note_id: str) -> Note | None:
         """Get note by ID.
 
         Args:
@@ -341,8 +341,8 @@ class NoteStorage:
     def update_note(
         self,
         note: Note,
-        change_summary: Optional[str] = None,
-        changed_by: Optional[str] = None,
+        change_summary: str | None = None,
+        changed_by: str | None = None,
     ) -> None:
         """Update existing note with optimistic locking.
 
@@ -542,8 +542,8 @@ class NoteStorage:
     def search_notes(
         self,
         query: str,
-        type: Optional[NoteType] = None,
-        tags: Optional[list[str]] = None,
+        type: NoteType | None = None,
+        tags: list[str] | None = None,
     ) -> list[Note]:
         """Search notes using full-text search.
 
@@ -641,7 +641,7 @@ class NoteStorage:
             except sqlite3.IntegrityError as e:
                 raise StorageError(f"Failed to add quote: {e}")
 
-    def get_quote(self, quote_id: str) -> Optional[Quote]:
+    def get_quote(self, quote_id: str) -> Quote | None:
         """Get quote by ID.
 
         Args:
@@ -710,9 +710,9 @@ class NoteStorage:
 
     def search_quotes(
         self,
-        query: Optional[str] = None,
-        tags: Optional[list[str]] = None,
-        category: Optional[QuoteCategory] = None,
+        query: str | None = None,
+        tags: list[str] | None = None,
+        category: QuoteCategory | None = None,
     ) -> list[Quote]:
         """Search quotes.
 
@@ -800,7 +800,7 @@ class NoteStorage:
                 ),
             )
 
-    def get_progress(self, entry_key: str) -> Optional[ReadingProgress]:
+    def get_progress(self, entry_key: str) -> ReadingProgress | None:
         """Get reading progress for entry.
 
         Args:
@@ -855,8 +855,8 @@ class NoteStorage:
 
     def get_reading_list(
         self,
-        status: Optional[str] = None,
-        min_priority: Optional[int] = None,
+        status: str | None = None,
+        min_priority: int | None = None,
     ) -> list[ReadingProgress]:
         """Get reading list with filters.
 
@@ -946,7 +946,7 @@ class NoteStorage:
 
         return versions
 
-    def get_note_at_version(self, note_id: str, version: int) -> Optional[Note]:
+    def get_note_at_version(self, note_id: str, version: int) -> Note | None:
         """Get specific version of a note.
 
         Args:

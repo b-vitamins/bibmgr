@@ -17,7 +17,7 @@ from __future__ import annotations
 import re
 from datetime import datetime
 from enum import Enum, auto
-from typing import Any, Dict, Optional, Protocol
+from typing import Any, Protocol
 from urllib.parse import urlparse
 
 import msgspec
@@ -40,8 +40,8 @@ class ValidationResult(msgspec.Struct, frozen=True, kw_only=True):
     is_valid: bool
     severity: ValidationSeverity = ValidationSeverity.ERROR
     message: str
-    suggestion: Optional[str] = None
-    metadata: Dict[str, Any] = msgspec.field(default_factory=dict)
+    suggestion: str | None = None
+    metadata: dict[str, Any] = msgspec.field(default_factory=dict)
 
     def to_string(self) -> str:
         """Format as human-readable string."""

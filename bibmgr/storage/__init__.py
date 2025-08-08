@@ -10,19 +10,19 @@ Provides:
 
 from bibmgr.storage.backend import (
     FileSystemStorage,
-    StorageError,
-    TransactionError,
     IntegrityError,
+    StorageError,
     Transaction,
+    TransactionError,
 )
 from bibmgr.storage.parser import (
     BibtexParser,
-    ParseError,
     FormatMetadata,
+    ParseError,
 )
 from bibmgr.storage.sidecar import (
-    MetadataSidecar,
     EntryMetadata,
+    MetadataSidecar,
     Note,
     SidecarError,
     ValidationError,

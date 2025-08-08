@@ -5,7 +5,7 @@ specifically for academic bibliography search with a CLI-first approach.
 """
 
 # Import only what's implemented so far
-from bibmgr.search.models import SearchResult, SearchHit, Entry, EntryType
+from bibmgr.search.models import Entry, EntryType, SearchHit, SearchResult
 
 __all__ = [
     "SearchResult",

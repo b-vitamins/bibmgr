@@ -3,19 +3,18 @@
 import tempfile
 from pathlib import Path
 
-
 from bibmgr.core.models import Entry, EntryType
-from bibmgr.operations.importer import (
-    BibTeXImporter,
-    ImportResult,
-    ImportOptions,
-    ConflictStrategy,
-    ImportStage,
-    EntryProcessor,
-    ImportValidator,
-)
 from bibmgr.operations.crud import EntryOperations
 from bibmgr.operations.duplicates import DuplicateDetector
+from bibmgr.operations.importer import (
+    BibTeXImporter,
+    ConflictStrategy,
+    EntryProcessor,
+    ImportOptions,
+    ImportResult,
+    ImportStage,
+    ImportValidator,
+)
 
 
 class TestImportResult:
@@ -569,14 +568,14 @@ class TestBibTeXImporter:
             journal = {Journal 1},
             year = {2023}
         }
-        
+
         @article{,  # Invalid: missing key
             title = {Invalid Entry},
             author = {Author},
             journal = {Journal},
             year = {2023}
         }
-        
+
         @article{valid2,
             title = {Valid Entry 2},
             author = {Author 2},

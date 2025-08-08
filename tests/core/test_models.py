@@ -4,9 +4,10 @@ These tests define the expected behavior of bibliography entry models,
 collections, and tags without depending on implementation details.
 """
 
-import pytest
 from datetime import datetime
 from pathlib import Path
+
+import pytest
 
 
 class TestEntryType:
@@ -349,8 +350,9 @@ class TestEntry:
 
     def test_serialization(self):
         """Should support serialization to/from JSON."""
-        from bibmgr.core import Entry, EntryType
         import msgspec
+
+        from bibmgr.core import Entry, EntryType
 
         entry = Entry(
             key="serial",
@@ -758,7 +760,7 @@ class TestRequiredFields:
 
     def test_get_required_fields(self):
         """Should provide required fields for each entry type."""
-        from bibmgr.core import get_required_fields, EntryType
+        from bibmgr.core import EntryType, get_required_fields
 
         # Article requirements
         article_required = get_required_fields(EntryType.ARTICLE)

@@ -5,7 +5,6 @@ from __future__ import annotations
 import re
 from datetime import datetime
 from pathlib import Path
-from typing import List, Optional
 
 from bibmgr.core.models import EntryType
 
@@ -74,7 +73,7 @@ def validate_entry_type(type_str: str) -> EntryType:
         )
 
 
-def validate_year(year: Optional[int | str]) -> Optional[int]:
+def validate_year(year: int | str | None) -> int | None:
     """Validate publication year.
 
     Args:
@@ -137,7 +136,7 @@ def validate_file_path(
     return path_obj
 
 
-def validate_format(format: str, valid_formats: List[str]) -> str:
+def validate_format(format: str, valid_formats: list[str]) -> str:
     """Validate format string.
 
     Args:
@@ -270,7 +269,7 @@ def validate_pages(pages: str) -> str:
     return pages
 
 
-def validate_required_fields(entry_dict: dict) -> List[str]:
+def validate_required_fields(entry_dict: dict) -> list[str]:
     """Validate that required fields are present.
 
     Args:

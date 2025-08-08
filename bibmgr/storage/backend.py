@@ -18,15 +18,16 @@ import shutil
 import tempfile
 import threading
 from collections import OrderedDict
+from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import asdict
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Iterator
+from typing import Any
 
 import msgspec
 
-from bibmgr.core.models import Entry, Collection, Tag
+from bibmgr.core.models import Collection, Entry, Tag
 
 
 class StorageError(Exception):
@@ -102,7 +103,7 @@ class LRUCache:
 class Transaction:
     """Transaction for atomic operations."""
 
-    def __init__(self, storage: "FileSystemStorage"):
+    def __init__(self, storage: FileSystemStorage):
         self.storage = storage
         self.operations: list[tuple[str, Any]] = []
         self.locks: set[str] = set()
@@ -248,9 +249,9 @@ class FileSystemStorage:
         """Load entry index."""
         if self.index_path.exists():
             try:
-                with open(self.index_path, "r") as f:
+                with open(self.index_path) as f:
                     return json.load(f)
-            except (json.JSONDecodeError, IOError):
+            except (OSError, json.JSONDecodeError):
                 return {}
         return {}
 
@@ -262,7 +263,7 @@ class FileSystemStorage:
                 with open(temp_path, "w") as f:
                     json.dump(self.index, f, indent=2, sort_keys=True)
                 temp_path.replace(self.index_path)
-            except IOError as e:
+            except OSError as e:
                 if temp_path.exists():
                     temp_path.unlink()
                 raise StorageError(f"Failed to save index: {e}") from e
@@ -271,9 +272,9 @@ class FileSystemStorage:
         """Load file checksums."""
         if self.checksum_path.exists():
             try:
-                with open(self.checksum_path, "r") as f:
+                with open(self.checksum_path) as f:
                     return json.load(f)
-            except (json.JSONDecodeError, IOError):
+            except (OSError, json.JSONDecodeError):
                 return {}
         return {}
 
@@ -285,7 +286,7 @@ class FileSystemStorage:
                 with open(temp_path, "w") as f:
                     json.dump(self.checksums, f, indent=2, sort_keys=True)
                 temp_path.replace(self.checksum_path)
-            except IOError as e:
+            except OSError as e:
                 if temp_path.exists():
                     temp_path.unlink()
                 raise StorageError(f"Failed to save checksums: {e}") from e
@@ -340,7 +341,7 @@ class FileSystemStorage:
                 with open(temp_path, "wb") as f:
                     f.write(data)
                 temp_path.replace(path)
-            except IOError as e:
+            except OSError as e:
                 raise StorageError(f"Failed to write entry {entry.key}: {e}") from e
 
             # Update index with lock
@@ -374,7 +375,7 @@ class FileSystemStorage:
             if path.exists():
                 try:
                     path.unlink()
-                except IOError as e:
+                except OSError as e:
                     raise StorageError(f"Failed to delete entry {key}: {e}") from e
 
                 with self._lock_mutex:
@@ -398,7 +399,7 @@ class FileSystemStorage:
             backup_path = backup_dir / "backup"
             shutil.copytree(self.data_dir, backup_path)
             return backup_path
-        except (IOError, OSError) as e:
+        except OSError as e:
             raise StorageError(f"Failed to create backup: {e}") from e
 
     def _restore_from_backup(self, backup_path: Path) -> None:
@@ -421,7 +422,7 @@ class FileSystemStorage:
             # Clear cache
             self.cache.clear()
 
-        except (IOError, OSError) as e:
+        except OSError as e:
             raise StorageError(f"Failed to restore from backup: {e}") from e
 
     # Public API
@@ -455,7 +456,7 @@ class FileSystemStorage:
 
             return entry
 
-        except (IOError, msgspec.DecodeError) as e:
+        except (OSError, msgspec.DecodeError) as e:
             raise StorageError(f"Failed to read entry {key}: {e}") from e
 
     def read_all(self) -> list[Entry]:
@@ -599,7 +600,7 @@ class FileSystemStorage:
                     if actual != expected:
                         errors.append(f"Checksum mismatch for entry: {key}")
 
-                except IOError as e:
+                except OSError as e:
                     errors.append(f"Cannot read entry {key}: {e}")
             else:
                 errors.append(f"Missing checksum for entry: {key}")
@@ -655,7 +656,7 @@ class FileSystemStorage:
 
         try:
             shutil.copytree(self.data_dir, path)
-        except (IOError, OSError) as e:
+        except OSError as e:
             raise StorageError(f"Failed to create backup: {e}") from e
 
     def restore(self, path: Path) -> None:
@@ -794,7 +795,7 @@ class FileSystemStorage:
                 json.dump(data, f, indent=2)
             temp_path.replace(path)
 
-        except IOError as e:
+        except OSError as e:
             raise StorageError(f"Failed to save collection: {e}") from e
 
     def load_collection(self, collection_id: str) -> Collection | None:
@@ -804,10 +805,10 @@ class FileSystemStorage:
             return None
 
         try:
-            with open(path, "r") as f:
+            with open(path) as f:
                 data = json.load(f)
             return Collection(**data)
-        except (IOError, json.JSONDecodeError, TypeError):
+        except (OSError, json.JSONDecodeError, TypeError):
             return None
 
     def list_collections(self) -> list[Collection]:
@@ -826,7 +827,7 @@ class FileSystemStorage:
             try:
                 path.unlink()
                 return True
-            except IOError:
+            except OSError:
                 return False
         return False
 
@@ -846,7 +847,7 @@ class FileSystemStorage:
                 json.dump(data, f, indent=2)
             temp_path.replace(path)
 
-        except IOError as e:
+        except OSError as e:
             raise StorageError(f"Failed to save tags: {e}") from e
 
     def load_tags(self) -> list[Tag]:
@@ -856,8 +857,8 @@ class FileSystemStorage:
             return []
 
         try:
-            with open(path, "r") as f:
+            with open(path) as f:
                 data = json.load(f)
             return [Tag(**item) for item in data]
-        except (IOError, json.JSONDecodeError, TypeError):
+        except (OSError, json.JSONDecodeError, TypeError):
             return []

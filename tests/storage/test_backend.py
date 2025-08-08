@@ -15,8 +15,9 @@ import concurrent.futures
 import tempfile
 import threading
 import time
+from contextlib import AbstractContextManager
 from pathlib import Path
-from typing import Any, ContextManager, Protocol
+from typing import Any, Protocol
 
 import pytest
 
@@ -100,7 +101,7 @@ class Storage(Protocol):
         """Remove all entries."""
         ...
 
-    def transaction(self) -> ContextManager[Transaction]:
+    def transaction(self) -> AbstractContextManager[Transaction]:
         """Start a transaction."""
         ...
 
@@ -124,7 +125,7 @@ class Storage(Protocol):
         """Restore from backup."""
         ...
 
-    def lock(self, key: str, timeout: float = 5.0) -> ContextManager:
+    def lock(self, key: str, timeout: float = 5.0) -> AbstractContextManager:
         """Acquire lock for entry."""
         ...
 
@@ -1063,7 +1064,7 @@ class TestErrorHandling:
             # If it succeeds, verify it's readable
             result = storage.read("huge")
             assert result is not None
-        except (IOError, OSError):
+        except OSError:
             # Expected for disk full
             pass
 

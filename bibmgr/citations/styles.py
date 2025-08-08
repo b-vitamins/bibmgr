@@ -1259,7 +1259,7 @@ class CSLStyle:
     def from_file(cls, path: Path | str) -> CSLStyle:
         """Load CSL from file."""
         path = Path(path)
-        with open(path, "r", encoding="utf-8") as f:
+        with open(path, encoding="utf-8") as f:
             csl_data = json.load(f)
         return cls(csl_data)
 
