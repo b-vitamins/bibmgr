@@ -1,1 +1,1 @@
-"""Storage module tests package."""
+"""Tests for storage module."""
