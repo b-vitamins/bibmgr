@@ -1,67 +1,45 @@
-"""Core domain models for bibliography entries.
+"""Core data models for bibliography entries.
 
-High-performance, immutable models using msgspec with proper validation support.
+This module defines the fundamental data structures for representing
+bibliographic entries in accordance with BibTeX standards. The Entry
+model supports all standard BibTeX fields as defined in TameTheBeast,
+plus modern extensions for DOIs, URLs, and other digital identifiers.
+
+Key components:
+- Entry: Immutable bibliography entry with full BibTeX field support
+- Collection: Hierarchical grouping of entries with smart filtering
+- Tag: Lightweight categorization for entries
+- ValidationError: Structured error reporting for entry validation
 """
 
-from __future__ import annotations
-
-import re
+import enum
+import uuid
 from datetime import datetime
-from enum import Enum
-from pathlib import Path
 from typing import Any
 
 import msgspec
 
+from .bibtex import BibtexEncoder
+from .fields import EntryType
 
-class EntryType(str, Enum):
-    """Standard BibTeX entry types."""
-
-    ARTICLE = "article"
-    BOOK = "book"
-    BOOKLET = "booklet"
-    CONFERENCE = "conference"
-    INBOOK = "inbook"
-    INCOLLECTION = "incollection"
-    INPROCEEDINGS = "inproceedings"
-    MANUAL = "manual"
-    MASTERSTHESIS = "mastersthesis"
-    MISC = "misc"
-    PHDTHESIS = "phdthesis"
-    PROCEEDINGS = "proceedings"
-    TECHREPORT = "techreport"
-    UNPUBLISHED = "unpublished"
-
-    def __str__(self) -> str:
-        """Return the string value."""
-        return self.value
-
-
-class ValidationError(msgspec.Struct, frozen=True):
-    """Validation error with details."""
-
-    field: str
-    message: str
-    severity: str = "error"  # error, warning, info
-
-    def __str__(self) -> str:
-        """Human-readable error message."""
-        return f"[{self.severity.upper()}] {self.field}: {self.message}"
+_entry_cache: dict[int, dict[str, Any]] = {}
 
 
 class Entry(msgspec.Struct, frozen=True, kw_only=True):
-    """Bibliography entry with full BibTeX field support.
+    """Immutable bibliography entry conforming to BibTeX standards.
 
-    Immutable structure with optional validation and cached properties.
+    This class represents a single bibliographic entry with support for
+    all standard BibTeX fields. The design follows BibTeX conventions
+    where field availability depends on entry type (see TameTheBeast
+    sections 2.2-2.3 for field requirements by type).
+
+    The entry is immutable (frozen) to ensure data integrity and enable
+    safe caching of computed properties.
     """
 
-    # Core identifiers
     key: str
     type: EntryType
-
-    # Standard BibTeX fields
     address: str | None = None
-    annote: str | None = None
     author: str | None = None
     booktitle: str | None = None
     chapter: str | None = None
@@ -80,334 +58,305 @@ class Entry(msgspec.Struct, frozen=True, kw_only=True):
     school: str | None = None
     series: str | None = None
     title: str | None = None
+    type_: str | None = None
     volume: str | None = None
     year: int | None = None
-
-    # Extended fields
-    abstract: str | None = None
     doi: str | None = None
-    eprint: str | None = None
+    url: str | None = None
     isbn: str | None = None
     issn: str | None = None
-    keywords: str | None = None
-    language: str | None = None
-    location: str | None = None
-    pmid: str | None = None
-    url: str | None = None
-
-    # File management
+    eprint: str | None = None
+    archiveprefix: str | None = None
+    primaryclass: str | None = None
+    abstract: str | None = None
+    keywords: tuple[str, ...] | None = None
     file: str | None = None
-    pdf_path: Path | None = None
 
-    # No __post_init__ - Entry is a pure data structure
-    # Validation should be done explicitly when needed
+    annotation: str | None = None
+    comment: str | None = None
+    timestamp: datetime | None = None
 
-    def validate(self) -> list[ValidationError]:
-        """Validate entry using default validator.
+    custom: dict[str, Any] | None = None
+    added: datetime = msgspec.field(default_factory=datetime.now)
+    modified: datetime = msgspec.field(default_factory=datetime.now)
+    tags: tuple[str, ...] = msgspec.field(default_factory=tuple)
 
-        Returns list of validation errors/warnings.
+    def __post_init__(self):
+        """Post-initialization hook for msgspec."""
+        pass
+
+    @property
+    def authors(self) -> tuple[str, ...]:
+        """Parse author field into individual names.
+
+        BibTeX uses ' and ' as the delimiter between author names.
+        This method handles escaped ampersands (\\&) which should not
+        be treated as delimiters.
+
+        Returns:
+            Tuple of author names in the order they appear.
         """
-        # Import here to avoid circular dependency
-        from bibmgr.core.validators import create_default_validator
+        cache_key = hash((self.key, self.author))
 
-        validator = create_default_validator()
-        return validator.validate(self)
+        if cache_key in _entry_cache and "authors" in _entry_cache[cache_key]:
+            return _entry_cache[cache_key]["authors"]
 
-    @property
-    def authors_list(self) -> list[str]:
-        """Parse author string into list of names."""
         if not self.author:
-            return []
+            result = ()
+        else:
+            import re
 
-        # Split by ' and ' and clean up
-        authors = [a.strip() for a in self.author.split(" and ")]
-        return [a for a in authors if a]  # Filter empty
+            temp = self.author.replace(r"\&", "\x00")
+            names = re.split(r"\s+and\s+", temp)
+            result = tuple(
+                name.replace("\x00", "&").strip() for name in names if name.strip()
+            )
+
+        if cache_key not in _entry_cache:
+            _entry_cache[cache_key] = {}
+        _entry_cache[cache_key]["authors"] = result
+
+        return result
 
     @property
-    def keywords_list(self) -> list[str]:
-        """Parse keywords string into list."""
-        if not self.keywords:
-            return []
+    def editors(self) -> tuple[str, ...]:
+        """Parse editor field into individual names.
 
-        # Split by comma or semicolon
-        keywords = re.split(r"[,;]", self.keywords)
-        return [k.strip() for k in keywords if k.strip()]
+        Uses the same parsing logic as authors, splitting on ' and '.
+
+        Returns:
+            Tuple of editor names in the order they appear.
+        """
+        cache_key = hash((self.key, self.editor))
+
+        if cache_key in _entry_cache and "editors" in _entry_cache[cache_key]:
+            return _entry_cache[cache_key]["editors"]
+
+        if not self.editor:
+            result = ()
+        else:
+            import re
+
+            temp = self.editor.replace(r"\&", "\x00")
+            names = re.split(r"\s+and\s+", temp)
+            result = tuple(
+                name.replace("\x00", "&").strip() for name in names if name.strip()
+            )
+
+        if cache_key not in _entry_cache:
+            _entry_cache[cache_key] = {}
+        _entry_cache[cache_key]["editors"] = result
+
+        return result
 
     @property
     def search_text(self) -> str:
-        """Get combined text for search indexing."""
-        parts = [
-            self.title or "",
-            self.author or "",
-            self.editor or "",
-            self.abstract or "",
-            self.keywords or "",
-            self.journal or "",
-            self.booktitle or "",
-            str(self.year) if self.year else "",
+        """Generate searchable text representation of the entry.
+
+        Combines all relevant text fields for full-text search.
+        The result is cached to avoid repeated string concatenation.
+
+        Returns:
+            Lowercase concatenation of all searchable fields.
+        """
+        cache_key = hash(self.key)
+
+        if cache_key in _entry_cache and "search_text" in _entry_cache[cache_key]:
+            return _entry_cache[cache_key]["search_text"]
+
+        parts = []
+
+        text_fields = [
+            self.key,
+            self.title,
+            self.author,
+            self.editor,
+            self.journal,
+            self.booktitle,
+            self.publisher,
+            self.institution,
+            self.school,
+            self.organization,
+            self.note,
+            self.abstract,
+            self.comment,
+            self.annotation,
         ]
-        return " ".join(filter(None, parts))
+
+        for field in text_fields:
+            if field:
+                parts.append(str(field))
+
+        if self.year:
+            parts.append(str(self.year))
+
+        if self.keywords:
+            parts.extend(self.keywords)
+
+        parts.extend(self.tags)
+        parts.append(self.type.value)
+
+        result = " ".join(parts).lower()
+
+        if cache_key not in _entry_cache:
+            _entry_cache[cache_key] = {}
+        _entry_cache[cache_key]["search_text"] = result
+
+        return result
+
+    def validate(self) -> list["ValidationError"]:
+        """Validate this entry using the validator registry."""
+        from .validators import get_validator_registry
+
+        registry = get_validator_registry()
+        return registry.validate(self)
 
     def to_bibtex(self) -> str:
-        """Convert entry to BibTeX format."""
-        lines = [f"@{self.type.value}{{{self.key},"]
-
-        def escape_bibtex(value: str) -> str:
-            """Escape special characters for BibTeX."""
-            # Double braces to escape them
-            return value.replace("{", "{{").replace("}", "}}")
-
-        # Add fields in standard order using braces
-        if self.author:
-            lines.append(f"    author = {{{escape_bibtex(self.author)}}},")
-        if self.editor:
-            lines.append(f"    editor = {{{escape_bibtex(self.editor)}}},")
-        if self.title:
-            lines.append(f"    title = {{{escape_bibtex(self.title)}}},")
-        if self.journal:
-            lines.append(f"    journal = {{{escape_bibtex(self.journal)}}},")
-        if self.booktitle:
-            lines.append(f"    booktitle = {{{escape_bibtex(self.booktitle)}}},")
-        if self.publisher:
-            lines.append(f"    publisher = {{{escape_bibtex(self.publisher)}}},")
-        if self.year:
-            lines.append(f"    year = {{{self.year}}},")
-        if self.volume:
-            lines.append(f"    volume = {{{escape_bibtex(self.volume)}}},")
-        if self.number:
-            lines.append(f"    number = {{{escape_bibtex(self.number)}}},")
-        if self.pages:
-            lines.append(f"    pages = {{{escape_bibtex(self.pages)}}},")
-        if self.doi:
-            lines.append(f"    doi = {{{escape_bibtex(self.doi)}}},")
-        if self.url:
-            lines.append(f"    url = {{{escape_bibtex(self.url)}}},")
-        if self.isbn:
-            lines.append(f"    isbn = {{{escape_bibtex(self.isbn)}}},")
-        if self.note:
-            lines.append(f"    note = {{{escape_bibtex(self.note)}}},")
-
-        # Remove trailing comma from last field
-        if lines[-1].endswith(","):
-            lines[-1] = lines[-1][:-1]
-
-        lines.append("}")
-        return "\n".join(lines)
-
-    @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> Entry:
-        """Create entry from dictionary.
-
-        Handles type conversion and field mapping.
-        """
-        # Convert type string to EntryType
-        if "type" in data and isinstance(data["type"], str):
-            data = data.copy()
-            data["type"] = EntryType(data["type"].lower())
-
-        # Convert pdf_path string to Path
-        if "pdf_path" in data and isinstance(data["pdf_path"], str):
-            data["pdf_path"] = Path(data["pdf_path"])
-
-        return cls(**data)
+        """Convert to BibTeX format."""
+        encoder = BibtexEncoder()
+        return encoder.encode_entry(self)
 
     def to_dict(self) -> dict[str, Any]:
-        """Convert entry to dictionary.
+        """Convert to dictionary, excluding None values.
 
-        Excludes None values and internal fields.
+        Returns:
+            Dictionary with only non-None fields.
         """
-        data = {}
+        data = msgspec.to_builtins(self)
+        return {k: v for k, v in data.items() if v is not None}
 
-        for field in self.__struct_fields__:
-            if field == "validate":  # Skip internal field
-                continue
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "Entry":
+        """Create Entry from dictionary representation.
 
-            value = getattr(self, field)
-            if value is not None:
-                if field == "type":
-                    data[field] = value.value
-                elif field == "pdf_path":
-                    data[field] = str(value)
-                else:
-                    data[field] = value
+        Handles type conversion and ensures immutability of list fields.
 
-        return data
+        Args:
+            data: Dictionary with entry fields.
+
+        Returns:
+            New Entry instance.
+        """
+        if "type" in data and not isinstance(data["type"], EntryType):
+            data["type"] = EntryType(data["type"])
+
+        if "keywords" in data and data["keywords"] is not None:
+            data["keywords"] = (
+                tuple(data["keywords"])
+                if isinstance(data["keywords"], list)
+                else data["keywords"]
+            )
+        if "tags" in data and data["tags"] is not None:
+            data["tags"] = (
+                tuple(data["tags"]) if isinstance(data["tags"], list) else data["tags"]
+            )
+
+        return msgspec.convert(data, cls)
 
 
 class Collection(msgspec.Struct, frozen=True, kw_only=True):
-    """Collection of bibliography entries.
+    """Hierarchical grouping of bibliography entries.
 
-    Can be static (manual) or smart (query-based).
+    Collections can be either manual (containing specific entry keys)
+    or smart (defined by a search query). They support nesting through
+    parent_id to create a tree structure.
     """
 
-    id: str
+    id: uuid.UUID = msgspec.field(default_factory=uuid.uuid4)
     name: str
     description: str | None = None
-    parent_id: str | None = None
+    parent_id: uuid.UUID | None = None
 
-    # Smart collection
+    entry_keys: tuple[str, ...] | None = None
     query: str | None = None
-    is_smart: bool = False
 
-    # Timestamps
-    created_at: datetime = msgspec.field(default_factory=datetime.now)
-    updated_at: datetime = msgspec.field(default_factory=datetime.now)
+    color: str | None = None
+    icon: str | None = None
 
-    # Entry membership (static collections only)
-    entry_keys: set[str] = msgspec.field(default_factory=set)
+    created: datetime = msgspec.field(default_factory=datetime.now)
+    modified: datetime = msgspec.field(default_factory=datetime.now)
 
-    def __post_init__(self) -> None:
-        """Validate collection constraints."""
-        if self.is_smart and self.entry_keys:
-            raise ValueError("Smart collection cannot have manual entry keys")
+    def __post_init__(self):
+        """Validate collection configuration."""
+        if self.entry_keys and self.query is not None:
+            raise ValueError("Collection cannot have both entry_keys and query")
 
-        if self.is_smart and not self.query:
-            raise ValueError("Smart collection must have a query")
+    @property
+    def is_smart(self) -> bool:
+        """Check if this is a smart (query-based) collection."""
+        return self.query is not None
 
-    def add_entry(self, key: str) -> Collection:
-        """Add entry to static collection (returns new instance)."""
+    def get_path(self, storage: Any) -> str:
+        """Get hierarchical path using collection names."""
+        if not self.parent_id:
+            return self.name
+
+        path_parts = [self.name]
+        current = self
+
+        while current.parent_id:
+            parent = storage.get_collection(current.parent_id)
+            if not parent:
+                break
+            path_parts.append(parent.name)
+            current = parent
+
+        return " > ".join(reversed(path_parts))
+
+    def add_entry(self, key: str) -> "Collection":
+        """Add an entry to this collection."""
         if self.is_smart:
             raise ValueError("Cannot add entries to smart collection")
 
-        new_keys = self.entry_keys | {key}
-        return self.__class__(
-            **{**self.to_dict(), "entry_keys": new_keys, "updated_at": datetime.now()}
+        current_keys = self.entry_keys or ()
+        if key not in current_keys:
+            new_keys = current_keys + (key,)
+        else:
+            new_keys = current_keys
+
+        return msgspec.structs.replace(
+            self, entry_keys=new_keys, modified=datetime.now()
         )
 
-    def remove_entry(self, key: str) -> Collection:
-        """Remove entry from static collection (returns new instance)."""
+    def remove_entry(self, key: str) -> "Collection":
+        """Remove an entry from this collection."""
         if self.is_smart:
             raise ValueError("Cannot remove entries from smart collection")
 
-        new_keys = self.entry_keys - {key}
-        return self.__class__(
-            **{**self.to_dict(), "entry_keys": new_keys, "updated_at": datetime.now()}
+        if self.entry_keys:
+            new_keys = tuple(k for k in self.entry_keys if k != key)
+        else:
+            new_keys = ()
+        return msgspec.structs.replace(
+            self, entry_keys=new_keys, modified=datetime.now()
         )
 
-    def get_path(self, parent_map: dict[str, str] | None = None) -> str:
-        """Get hierarchical path.
 
-        Args:
-            parent_map: Mapping of collection IDs to parent IDs
+class Tag(msgspec.Struct, frozen=True):
+    """Lightweight tag for entry categorization."""
 
-        Returns:
-            Full path like "Research/ML/NLP"
-        """
-        if not parent_map or not self.parent_id:
-            return self.name
-
-        # Build path from parents
-        path_parts = [self.name]
-        current_id = self.parent_id
-
-        while current_id:
-            if current_id not in parent_map:
-                break
-            # Find parent collection name
-            path_parts.insert(0, current_id)  # Simplified - would need full collection
-            current_id = parent_map.get(current_id)
-
-        return "/".join(path_parts)
-
-    def to_dict(self) -> dict[str, Any]:
-        """Convert to dictionary."""
-        return {
-            "id": self.id,
-            "name": self.name,
-            "description": self.description,
-            "parent_id": self.parent_id,
-            "query": self.query,
-            "is_smart": self.is_smart,
-            "created_at": self.created_at,
-            "updated_at": self.updated_at,
-            "entry_keys": self.entry_keys,
-        }
-
-
-class Tag(msgspec.Struct, frozen=True, kw_only=True):
-    """Hierarchical tag for organizing entries."""
-
-    path: str
+    name: str
     color: str | None = None
-    description: str | None = None
 
-    def __post_init__(self) -> None:
-        """Validate tag path."""
-        if not self.path:
-            raise ValueError("Tag path cannot be empty")
-
-        if "//" in self.path:
-            raise ValueError("Tag path cannot contain empty components")
-
-        if self.path.startswith("/") or self.path.endswith("/"):
-            raise ValueError("Tag path cannot start or end with /")
-
-    @property
-    def name(self) -> str:
-        """Get tag name (last component)."""
-        return self.path.split("/")[-1]
-
-    @property
-    def parent_path(self) -> str | None:
-        """Get parent tag path."""
-        parts = self.path.split("/")
-        if len(parts) > 1:
-            return "/".join(parts[:-1])
-        return None
-
-    @property
-    def level(self) -> int:
-        """Get nesting level (0 for root)."""
-        return self.path.count("/")
-
-    @property
-    def path_components(self) -> list[str]:
-        """Get path components."""
-        return self.path.split("/")
-
-    def is_ancestor_of(self, other: Tag) -> bool:
-        """Check if this tag is ancestor of another."""
-        return other.path.startswith(self.path + "/")
-
-    def is_descendant_of(self, other: Tag) -> bool:
-        """Check if this tag is descendant of another."""
-        return self.path.startswith(other.path + "/")
-
-    def is_sibling_of(self, other: Tag) -> bool:
-        """Check if tags are siblings (same parent)."""
-        return (
-            self.parent_path == other.parent_path
-            and self.path != other.path
-            and self.parent_path is not None
-        )
+    def __str__(self) -> str:
+        return self.name
 
 
-# Required fields configuration
-REQUIRED_FIELDS: dict[EntryType, set[str]] = {
-    EntryType.ARTICLE: {"author", "title", "journal", "year"},
-    EntryType.BOOK: {"title", "publisher", "year"},  # + author OR editor
-    EntryType.BOOKLET: {"title"},
-    EntryType.CONFERENCE: {"author", "title", "booktitle", "year"},
-    EntryType.INBOOK: {
-        "title",
-        "publisher",
-        "year",
-    },  # + author OR editor, chapter OR pages
-    EntryType.INCOLLECTION: {"author", "title", "booktitle", "publisher", "year"},
-    EntryType.INPROCEEDINGS: {"author", "title", "booktitle", "year"},
-    EntryType.MANUAL: {"title"},
-    EntryType.MASTERSTHESIS: {"author", "title", "school", "year"},
-    EntryType.MISC: set(),  # No required fields
-    EntryType.PHDTHESIS: {"author", "title", "school", "year"},
-    EntryType.PROCEEDINGS: {"title", "year"},
-    EntryType.TECHREPORT: {"author", "title", "institution", "year"},
-    EntryType.UNPUBLISHED: {"author", "title", "note"},
-}
+class ValidationError(msgspec.Struct):
+    """Structured validation error information.
 
-
-def get_required_fields(entry_type: EntryType) -> set[str]:
-    """Get required fields for an entry type.
-
-    Note: Some types have alternatives (author/editor, chapter/pages).
+    Used to report validation issues with different severity levels.
     """
-    return REQUIRED_FIELDS.get(entry_type, set()).copy()
+
+    field: str | None
+    message: str
+    severity: str = "error"
+    entry_key: str | None = None
+
+
+class ErrorSeverity(enum.Enum):
+    """Severity levels for validation errors."""
+
+    ERROR = "error"
+    WARNING = "warning"
+    INFO = "info"
