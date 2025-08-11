@@ -396,6 +396,12 @@ class CollectionBuilder:
             self._entry_keys.add(entry.key)
         return self
 
+    def add_entry_keys(self, *keys: str) -> "CollectionBuilder":
+        """Add entries by key."""
+        for key in keys:
+            self._entry_keys.add(key)
+        return self
+
     def remove_entry_keys(self, keys: list[str]) -> "CollectionBuilder":
         """Remove entries by key."""
         for key in keys:
