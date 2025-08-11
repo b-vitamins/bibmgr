@@ -1,54 +1,132 @@
-"""Entry operations module."""
+"""Operations module for bibliography management.
 
-from .crud import (
-    BulkOperationOptions,
-    CascadeOptions,
-    EntryOperations,
-    OperationResult,
-    OperationType,
+This module provides high-level operations for managing bibliography entries
+including CRUD operations, import/export workflows, deduplication, and more.
+
+The module is organized into:
+
+- commands/: Command pattern implementation for atomic operations
+- workflows/: Complex multi-step workflows
+- policies/: Business rules and strategies
+- validators/: Operation validation logic
+- results.py: Rich result types for operation outcomes
+
+All operations integrate with the storage layer through the repository pattern
+and publish events for real-time tracking.
+"""
+
+# Commands
+from .commands import (
+    BulkCreateHandler,
+    CreateCommand,
+    CreateHandler,
+    DeleteCommand,
+    DeleteHandler,
+    FieldChange,
+    MergeCommand,
+    MergeHandler,
+    PatchHandler,
+    UpdateCommand,
+    UpdateHandler,
 )
-from .duplicates import (
-    AuthorNormalizer,
-    DuplicateDetector,
-    DuplicateIndex,
-    DuplicateMatch,
-    EntryMerger,
-    MatchType,
+
+# Policies
+from .policies import (
+    ConflictDecision,
+    ConflictPolicy,
+    ConflictResolution,
+    FieldMergeRule,
+    KeyNamingPolicy,
+    MergePolicy,
     MergeStrategy,
-    StringSimilarity,
-    TitleNormalizer,
 )
-from .importer import (
-    BibTeXImporter,
-    ConflictStrategy,
-    ImportError,
-    ImportOptions,
-    ImportResult,
-    ImportStage,
+
+# Results
+from .results import (
+    BulkOperationResult,
+    OperationResult,
+    ProgressUpdate,
+    ResultStatus,
+    StepResult,
+    WorkflowResult,
+)
+
+# Validators
+from .validators import (
+    CreatePostconditions,
+    CreatePreconditions,
+    DeletePostconditions,
+    DeletePreconditions,
+    MergePostconditions,
+    MergePreconditions,
+    UpdatePostconditions,
+    UpdatePreconditions,
+)
+
+# Workflows
+from .workflows import (
+    DeduplicationConfig,
+    DeduplicationMode,
+    DeduplicationRule,
+    DeduplicationWorkflow,
+    ExportFormat,
+    ExportWorkflow,
+    ExportWorkflowConfig,
+    ImportFormat,
+    ImportWorkflow,
+    ImportWorkflowConfig,
+    MigrationConfig,
+    MigrationWorkflow,
 )
 
 __all__ = [
-    # CRUD
-    "EntryOperations",
+    # Commands
+    "CreateCommand",
+    "CreateHandler",
+    "BulkCreateHandler",
+    "UpdateCommand",
+    "UpdateHandler",
+    "FieldChange",
+    "PatchHandler",
+    "DeleteCommand",
+    "DeleteHandler",
+    "MergeCommand",
+    "MergeHandler",
+    # Workflows
+    "ImportFormat",
+    "ImportWorkflow",
+    "ImportWorkflowConfig",
+    "ExportFormat",
+    "ExportWorkflow",
+    "ExportWorkflowConfig",
+    "DeduplicationMode",
+    "DeduplicationRule",
+    "DeduplicationConfig",
+    "DeduplicationWorkflow",
+    "MigrationConfig",
+    "MigrationWorkflow",
+    # Results
+    "ResultStatus",
     "OperationResult",
-    "OperationType",
-    "BulkOperationOptions",
-    "CascadeOptions",
-    # Duplicates
-    "DuplicateDetector",
-    "DuplicateMatch",
-    "MatchType",
-    "DuplicateIndex",
-    "EntryMerger",
+    "BulkOperationResult",
+    "StepResult",
+    "WorkflowResult",
+    "ProgressUpdate",
+    # Policies
+    "ConflictResolution",
+    "ConflictDecision",
+    "ConflictPolicy",
     "MergeStrategy",
-    "StringSimilarity",
-    "TitleNormalizer",
-    "AuthorNormalizer",
-    # Importer
-    "BibTeXImporter",
-    "ImportResult",
-    "ImportOptions",
-    "ConflictStrategy",
-    "ImportStage",
-    "ImportError",
+    "FieldMergeRule",
+    "MergePolicy",
+    "KeyNamingPolicy",
+    # Validators
+    "CreatePreconditions",
+    "UpdatePreconditions",
+    "DeletePreconditions",
+    "MergePreconditions",
+    "CreatePostconditions",
+    "UpdatePostconditions",
+    "DeletePostconditions",
+    "MergePostconditions",
 ]
