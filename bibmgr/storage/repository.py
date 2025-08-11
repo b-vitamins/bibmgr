@@ -12,6 +12,8 @@ from typing import Any, Protocol
 from bibmgr.core.models import Collection, Entry
 from bibmgr.core.validators import ValidatorRegistry
 
+from .query import Condition, Operator, Query
+
 
 class StorageBackend(Protocol):
     """Protocol for storage backend implementations."""
@@ -214,6 +216,77 @@ class EntryRepository(Repository):
             QueryBuilder().order_by("added", ascending=False).limit(limit)
         )
 
+    def search(self, query: Query) -> list[Entry]:
+        """Search entries using a Query object."""
+        # For now, implement a simple search using find_all
+        # This could be optimized with proper indexing later
+        all_entries = self.find_all()
+        return [entry for entry in all_entries if self._matches_query(entry, query)]
+
+    def _matches_query(self, entry: Entry, query: Query | Condition) -> bool:
+        """Check if an entry matches a query."""
+        if isinstance(query, Condition):
+            return self._matches_condition(entry, query)
+
+        # Handle compound queries (AND/OR/NOT)
+        if hasattr(query, "operator") and hasattr(query, "conditions"):
+            if query.operator == Operator.AND:
+                return all(
+                    self._matches_query(entry, cond) for cond in query.conditions
+                )
+            elif query.operator == Operator.OR:
+                return any(
+                    self._matches_query(entry, cond) for cond in query.conditions
+                )
+            elif query.operator == Operator.NOT:
+                return not self._matches_query(entry, query.conditions[0])
+
+        return False
+
+    def _matches_condition(self, entry: Entry, condition: Condition) -> bool:
+        """Check if an entry matches a single condition."""
+        entry_dict = entry.to_dict()
+        field_value = entry_dict.get(condition.field)
+
+        if field_value is None:
+            return False
+
+        # Convert to string for string operations
+        if condition.operator in [
+            Operator.CONTAINS,
+            Operator.STARTS_WITH,
+            Operator.ENDS_WITH,
+        ]:
+            field_value = str(field_value).lower()
+            condition_value = str(condition.value).lower()
+
+            if condition.operator == Operator.CONTAINS:
+                return condition_value in field_value
+            elif condition.operator == Operator.STARTS_WITH:
+                return field_value.startswith(condition_value)
+            elif condition.operator == Operator.ENDS_WITH:
+                return field_value.endswith(condition_value)
+
+        # Handle other operators
+        if condition.operator == Operator.EQ:
+            return field_value == condition.value
+        elif condition.operator == Operator.NE:
+            return field_value != condition.value
+        elif condition.operator == Operator.GT:
+            return field_value > condition.value
+        elif condition.operator == Operator.GTE:
+            return field_value >= condition.value
+        elif condition.operator == Operator.LT:
+            return field_value < condition.value
+        elif condition.operator == Operator.LTE:
+            return field_value <= condition.value
+        elif condition.operator == Operator.IN:
+            return field_value in condition.value
+        elif condition.operator == Operator.NOT_IN:
+            return field_value not in condition.value
+
+        return False
+
     def _matches_filters(self, entry: Entry, filters: list[tuple]) -> bool:
         """Check if entry matches all filters."""
         for field, op, value in filters:
@@ -292,7 +365,18 @@ class CollectionRepository:
     def find(self, collection_id: str) -> Collection | None:
         """Find collection by ID."""
         data = self.backend.read(f"collection:{collection_id}")
-        return Collection(**data) if data else None
+        if not data:
+            return None
+
+        # Parse datetime fields
+        from datetime import datetime
+
+        if "created" in data and isinstance(data["created"], str):
+            data["created"] = datetime.fromisoformat(data["created"])
+        if "modified" in data and isinstance(data["modified"], str):
+            data["modified"] = datetime.fromisoformat(data["modified"])
+
+        return Collection(**data)
 
     def find_all(self) -> list[Collection]:
         """Get all collections."""
@@ -306,6 +390,21 @@ class CollectionRepository:
 
     def save(self, collection: Collection) -> None:
         """Save collection."""
+        from datetime import datetime
+
+        # Handle datetime fields - they might be datetime objects or strings
+        created = collection.created
+        if isinstance(created, datetime):
+            created_str = created.isoformat()
+        else:
+            created_str = created
+
+        modified = collection.modified
+        if isinstance(modified, datetime):
+            modified_str = modified.isoformat()
+        else:
+            modified_str = modified
+
         data = {
             "id": str(collection.id),
             "name": collection.name,
@@ -315,8 +414,8 @@ class CollectionRepository:
             "query": collection.query,
             "color": collection.color,
             "icon": collection.icon,
-            "created": collection.created.isoformat(),
-            "modified": collection.modified.isoformat(),
+            "created": created_str,
+            "modified": modified_str,
         }
         self.backend.write(f"collection:{collection.id}", data)
 
@@ -339,6 +438,10 @@ class CollectionRepository:
     def find_smart_collections(self) -> list[Collection]:
         """Find all smart (query-based) collections."""
         return [c for c in self.find_all() if c.is_smart]
+
+    def find_by_name(self, name: str) -> list[Collection]:
+        """Find collections by name (exact match)."""
+        return [c for c in self.find_all() if c.name == name]
 
 
 class RepositoryManager:

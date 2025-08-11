@@ -160,6 +160,13 @@ class RisImporter:
             data["SP"] = value
         elif tag == "EP":
             data["EP"] = value
+        elif tag == "SN":
+            # SN can be ISBN or ISSN depending on entry type
+            # Store it temporarily and decide later based on type
+            data["SN"] = value
+        elif tag == "BN":
+            # BN is always ISBN
+            data["isbn"] = value
         elif tag in self.TAG_MAPPING:
             field = self.TAG_MAPPING[tag]
             if field not in ["author", "keywords", "note"]:
@@ -212,6 +219,14 @@ class RisImporter:
         if "TY" in data:
             entry_type = self.TYPE_MAPPING.get(data["TY"], EntryType.MISC)
             del data["TY"]
+
+        # Handle SN field based on entry type
+        if "SN" in data:
+            if entry_type in [EntryType.BOOK, EntryType.INBOOK, EntryType.INCOLLECTION]:
+                data["isbn"] = data["SN"]
+            else:
+                data["issn"] = data["SN"]
+            del data["SN"]
 
         if "SP" in data and "EP" in data:
             data["pages"] = f"{data['SP']}--{data['EP']}"

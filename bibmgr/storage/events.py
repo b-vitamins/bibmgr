@@ -17,6 +17,9 @@ class EventType(Enum):
     ENTRY_UPDATED = auto()
     ENTRY_DELETED = auto()
     ENTRIES_IMPORTED = auto()
+    ENTRIES_MERGED = auto()
+    BULK_CREATED = auto()
+    PROGRESS = auto()
 
     # Metadata events
     METADATA_UPDATED = auto()
@@ -34,6 +37,10 @@ class EventType(Enum):
     # System events
     STORAGE_CLEARED = auto()
     INDEX_REBUILT = auto()
+
+    # Workflow events
+    WORKFLOW_COMPLETED = auto()
+    PROGRESS_UPDATE = auto()
 
 
 @dataclass
