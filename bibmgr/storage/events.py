@@ -37,6 +37,7 @@ class EventType(Enum):
     # System events
     STORAGE_CLEARED = auto()
     INDEX_REBUILT = auto()
+    INDEX_PROGRESS = auto()
 
     # Workflow events
     WORKFLOW_COMPLETED = auto()
