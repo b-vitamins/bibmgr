@@ -360,3 +360,132 @@ class ErrorSeverity(enum.Enum):
     ERROR = "error"
     WARNING = "warning"
     INFO = "info"
+
+
+def generate_citation_key(
+    entry: Entry,
+    format: str = "{author1}{year}",
+    suffix: str | None = None,
+) -> str:
+    """Generate a citation key for an entry.
+
+    Args:
+        entry: Bibliography entry
+        format: Key format template with placeholders:
+            - {author1}, {author2}, etc.: Author surnames
+            - {AUTHOR1}, {AUTHOR2}, etc.: Uppercase author surnames
+            - {year}: Publication year
+            - {venue}: Conference/journal abbreviation
+            - {journal}: Journal abbreviation
+        suffix: Optional suffix for disambiguation
+
+    Returns:
+        Generated citation key
+    """
+    import re
+    import unicodedata
+
+    from .names import NameParser
+
+    # Extract authors
+    authors = []
+    if hasattr(entry, "author") and entry.author:
+        # Split by "and"
+        author_parts = entry.author.split(" and ")
+        for author in author_parts:
+            author = author.strip()
+            if not author:
+                continue
+
+            # Check for collaboration (in braces)
+            if author.startswith("{") and author.endswith("}"):
+                # Clean collaboration name
+                surname = re.sub(r"[^a-zA-Z0-9]", "", author[1:-1]).lower()
+                authors.append(surname)
+            else:
+                # Parse name using BibTeX rules
+                parsed = NameParser.parse(author)
+                # Combine von and last parts for surname
+                surname_parts = parsed.von + parsed.last
+                if surname_parts:
+                    surname = "".join(surname_parts)
+                    # Normalize Unicode (e.g., ü -> u)
+                    surname = unicodedata.normalize("NFD", surname)
+                    surname = "".join(
+                        c for c in surname if unicodedata.category(c) != "Mn"
+                    )
+                    # Clean surname
+                    surname = re.sub(r"[^a-zA-Z0-9]", "", surname).lower()
+                    authors.append(surname)
+                else:
+                    authors.append("anonymous")
+
+    if not authors:
+        authors = ["anonymous"]
+
+    # Extract year
+    year = ""
+    if hasattr(entry, "year") and entry.year:
+        year = str(entry.year)
+
+    # Extract venue/journal
+    venue = ""
+    journal = ""
+
+    if entry.type == EntryType.INPROCEEDINGS:
+        if hasattr(entry, "booktitle") and entry.booktitle:
+            # Extract abbreviation from booktitle
+            venue = _abbreviate_venue(entry.booktitle)
+
+    if hasattr(entry, "journal") and entry.journal:
+        journal = _abbreviate_venue(entry.journal)
+
+    # Build key from format
+    key = format
+
+    # Replace author placeholders
+    for i, author in enumerate(authors, 1):
+        key = key.replace(f"{{author{i}}}", author)
+        key = key.replace(f"{{AUTHOR{i}}}", author.upper())
+
+    # Replace other placeholders
+    key = key.replace("{year}", year)
+    key = key.replace("{venue}", venue)
+    key = key.replace("{journal}", journal)
+
+    # Remove any remaining placeholders
+    key = re.sub(r"\{[^}]+\}", "", key)
+
+    # Add suffix if provided
+    if suffix:
+        key += suffix
+
+    return key
+
+
+def _abbreviate_venue(name: str) -> str:
+    """Create abbreviation from venue/journal name."""
+    # Common abbreviations
+    abbreviations = {
+        "neural information processing systems": "neurips",
+        "neurips": "neurips",
+        "international conference on machine learning": "icml",
+        "icml": "icml",
+        "computer vision and pattern recognition": "cvpr",
+        "cvpr": "cvpr",
+        "nature": "nature",
+        "science": "science",
+        "proceedings of the national academy of sciences": "pnas",
+        "pnas": "pnas",
+    }
+
+    clean = name.lower().strip()
+    if clean in abbreviations:
+        return abbreviations[clean]
+
+    # Create abbreviation from first letters
+    words = clean.split()
+    if len(words) > 1:
+        return "".join(w[0] for w in words if len(w) > 2)[:6]
+
+    return clean[:6]

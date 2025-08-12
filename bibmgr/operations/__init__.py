@@ -16,6 +16,13 @@ and publish events for real-time tracking.
 """
 
 # Commands
+# Collection Commands
+from .collection_commands import (
+    AddToCollectionCommand,
+    CreateCollectionCommand,
+    MergeCollectionsCommand,
+    RemoveFromCollectionCommand,
+)
 from .commands import (
     BulkCreateHandler,
     CreateCommand,
@@ -30,6 +37,16 @@ from .commands import (
     UpdateHandler,
 )
 
+# Formatters
+from .formatters import (
+    CitationFormatter,
+)
+
+# Collection Handlers
+from .handlers import (
+    CollectionHandler,
+)
+
 # Policies
 from .policies import (
     ConflictDecision,
@@ -39,6 +56,19 @@ from .policies import (
     KeyNamingPolicy,
     MergePolicy,
     MergeStrategy,
+)
+
+# Quality Commands
+from .quality_commands import (
+    CheckConsistencyCommand,
+    GenerateQualityReportCommand,
+    ValidateBatchCommand,
+    ValidateEntryCommand,
+)
+
+# Quality Handlers
+from .quality_handlers import (
+    QualityHandler,
 )
 
 # Results
@@ -92,6 +122,22 @@ __all__ = [
     "DeleteHandler",
     "MergeCommand",
     "MergeHandler",
+    # Quality Commands
+    "ValidateEntryCommand",
+    "ValidateBatchCommand",
+    "CheckConsistencyCommand",
+    "GenerateQualityReportCommand",
+    # Quality Handlers
+    "QualityHandler",
+    # Collection Commands
+    "CreateCollectionCommand",
+    "AddToCollectionCommand",
+    "RemoveFromCollectionCommand",
+    "MergeCollectionsCommand",
+    # Collection Handlers
+    "CollectionHandler",
+    # Formatters
+    "CitationFormatter",
     # Workflows
     "ImportFormat",
     "ImportWorkflow",

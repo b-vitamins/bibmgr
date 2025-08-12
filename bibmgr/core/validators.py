@@ -289,6 +289,16 @@ class FieldFormatValidator(Validator):
                     entry_key=entry.key,
                 )
             )
+        elif "-" in entry.pages and "--" not in entry.pages:
+            # Single dash instead of double dash
+            errors.append(
+                ValidationError(
+                    field="pages",
+                    message="Consider using double dash (--) for page ranges in BibTeX format",
+                    severity="info",
+                    entry_key=entry.key,
+                )
+            )
 
         return errors
 
@@ -516,6 +526,17 @@ class URLValidator(Validator):
                         entry_key=entry.key,
                     )
                 )
+            else:
+                # Valid URL, check for HTTP vs HTTPS
+                if result.scheme == "http":
+                    errors.append(
+                        ValidationError(
+                            field="url",
+                            message="Consider using HTTPS instead of HTTP for better security",
+                            severity="warning",
+                            entry_key=entry.key,
+                        )
+                    )
 
         return errors
 

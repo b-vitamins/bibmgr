@@ -53,6 +53,11 @@ class OperationResult:
     # Performance metrics
     duration_ms: int | None = None
 
+    @property
+    def success(self) -> bool:
+        """Check if the operation succeeded."""
+        return self.status.is_success()
+
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary representation."""
         result = {
