@@ -1,493 +1,914 @@
-"""Search engine implementation using Whoosh for full-text indexing.
-
-This module provides the core search functionality with advanced features
-like faceted search, spell correction, and result caching.
-"""
-
-from __future__ import annotations
+"""Search engine implementation for bibliography entries."""
 
 import time
-from collections import defaultdict
 from pathlib import Path
 from typing import Any
 
-from diskcache import Cache
-from whoosh import index
-from whoosh.analysis import StemmingAnalyzer
-from whoosh.fields import ID, NUMERIC, TEXT, Schema
-from whoosh.qparser import MultifieldParser
-from whoosh.qparser.plugins import FuzzyTermPlugin
-
-from .history import SearchHistory
-from .models import Entry, EntryType, SearchHit, SearchResult
-from .query import QueryField
-from .query import QueryParser as CustomQueryParser
+from ..core.models import Entry as BibEntry
+from .backends.base import SearchBackend, SearchQuery
+from .backends.memory import MemoryBackend
+from .highlighting import Highlighter
+from .indexing import EntryIndexer, FieldConfiguration
+from .query import QueryExpander, QueryParser
+from .results import (
+    ResultsBuilder,
+    SearchResultCollection,
+    SearchSuggestion,
+    SortOrder,
+    create_empty_results,
+)
 
 
 class SearchEngine:
-    """Full-text search engine with advanced features."""
+    """Search engine for bibliography entries.
+
+    Coordinates query parsing, indexing, backend operations,
+    highlighting, and result formatting.
+    """
 
     def __init__(
         self,
-        index_dir: Path | None = None,
-        cache_dir: Path | None = None,
+        backend: SearchBackend | None = None,
+        field_config: FieldConfiguration | None = None,
+        enable_highlighting: bool = True,
+        enable_query_expansion: bool = True,
+        ranker: Any = None,
+        repository: Any = None,
     ):
-        """Initialize search engine with index and cache.
+        """Initialize search engine.
 
         Args:
-            index_dir: Directory for search index (default: ~/.cache/bibmgr/index)
-            cache_dir: Directory for result cache (default: ~/.cache/bibmgr/cache)
+            backend: Search backend to use (default: MemoryBackend)
+            field_config: Field configuration for indexing
+            enable_highlighting: Whether to enable result highlighting
+            enable_query_expansion: Whether to enable query expansion
+            ranker: Ranking algorithm to use (default: BM25Ranker)
+            repository: Entry repository for retrieving full entry data
         """
-        # Set up directories
-        if index_dir is None:
-            index_dir = Path.home() / ".cache" / "bibmgr" / "index"
-        if cache_dir is None:
-            cache_dir = Path.home() / ".cache" / "bibmgr" / "cache"
+        self.backend = backend or MemoryBackend()
+        self.field_config = field_config or FieldConfiguration()
+        self.indexer = EntryIndexer(self.field_config)
+        self.query_parser = QueryParser()
+        self.query_expander = QueryExpander() if enable_query_expansion else None
+        self.highlighter = Highlighter() if enable_highlighting else None
+        self.repository = repository
 
-        self.index_dir = index_dir
-        self.index_dir.mkdir(parents=True, exist_ok=True)
+        from .ranking import BM25Ranker
 
-        # Initialize schema with stemming analyzer for better matching
-        analyzer = StemmingAnalyzer()
-        self.schema = Schema(
-            key=ID(unique=True, stored=True),
-            type=ID(stored=True),
-            title=TEXT(stored=True, field_boost=2.0, analyzer=analyzer),
-            authors=TEXT(stored=True, field_boost=1.5, analyzer=analyzer),
-            year=NUMERIC(stored=True),
-            venue=TEXT(stored=True, field_boost=1.2, analyzer=analyzer),
-            abstract=TEXT(stored=True, analyzer=analyzer),
-            keywords=TEXT(stored=True, field_boost=1.5, analyzer=analyzer),
-            doi=ID(stored=True),
-            url=ID(stored=True),
-            content=TEXT(analyzer=analyzer),  # Combined searchable content
-        )
+        self.ranker = ranker or BM25Ranker()
+        self.enable_highlighting = enable_highlighting
+        self.enable_query_expansion = enable_query_expansion
+        self.default_limit = 20
+        self.max_limit = 1000
+        self._index_size = 0
+        self._last_query_time = 0
 
-        # Create or open index
-        if index.exists_in(str(self.index_dir)):
-            self.ix = index.open_dir(str(self.index_dir))
-        else:
-            self.ix = index.create_in(str(self.index_dir), self.schema)
-
-        # Initialize query parser
-        self.query_parser = CustomQueryParser()
-
-        # Initialize Whoosh query parser for actual searching
-        self.whoosh_parser = MultifieldParser(
-            ["title", "authors", "abstract", "keywords", "content"], schema=self.schema
-        )
-        self.whoosh_parser.add_plugin(FuzzyTermPlugin())
-
-        # Initialize components
-        self.history = SearchHistory()
-        self.locator = FileLocator()  # Will be implemented with locate.py
-
-        # Initialize cache with 1GB size limit
-        self.cache = Cache(str(cache_dir), size_limit=1_000_000_000)
-
-        # Statistics
-        self.stats = {
-            "total_searches": 0,
-            "cache_hits": 0,
-            "cache_misses": 0,
-            "total_search_time_ms": 0.0,
-            "avg_search_time_ms": 0.0,
-        }
-
-    def index_entries(self, entries: list[Entry]) -> None:
-        """Index or update bibliography entries.
+    def index_entry(self, entry: BibEntry) -> None:
+        """Index a single bibliography entry.
 
         Args:
-            entries: List of entries to index
+            entry: Bibliography entry to index
         """
-        writer = self.ix.writer()
+        doc = self.indexer.index_entry(entry)
+        self.backend.index(entry.key, doc)
+        self._index_size += 1
 
-        try:
-            for entry in entries:
-                # Prepare document fields
-                doc = {
-                    "key": entry.key,
-                    "type": entry.type.value,
-                    "title": entry.title,
-                    "authors": " ".join(entry.authors),
-                    "year": entry.year,
-                    "venue": entry.venue,
-                    "abstract": entry.abstract,
-                    "keywords": " ".join(entry.keywords) if entry.keywords else None,
-                    "doi": entry.doi,
-                    "url": entry.url,
-                    "content": entry.text,  # Combined searchable text
-                }
+    def index_entries(self, entries: list[BibEntry]) -> None:
+        """Index multiple bibliography entries efficiently.
 
-                # Remove None values
-                doc = {k: v for k, v in doc.items() if v is not None}
+        Args:
+            entries: List of bibliography entries to index
+        """
+        documents = []
+        for entry in entries:
+            doc = self.indexer.index_entry(entry)
+            doc["key"] = entry.key
+            documents.append(doc)
 
-                # Update or add document
-                writer.update_document(**doc)
+        self.backend.index_batch(documents)
+        self._index_size += len(entries)
 
-            writer.commit()
+    def remove_entry(self, entry_key: str) -> bool:
+        """Remove an entry from the search index.
 
-            # Clear cache after indexing
-            self.cache.clear()
+        Args:
+            entry_key: Key of entry to remove
 
-        except Exception:
-            writer.cancel()
-            raise
+        Returns:
+            True if entry was removed, False if not found
+        """
+        success = self.backend.delete(entry_key)
+        if success:
+            self._index_size = max(0, self._index_size - 1)
+        return success
+
+    def clear_index(self) -> None:
+        """Clear all entries from the search index."""
+        self.backend.clear()
+        self._index_size = 0
 
     def search(
         self,
-        query_string: str,
+        query: str,
         limit: int = 20,
-        page: int = 1,
-    ) -> SearchResult:
-        """Search the index with advanced features.
+        offset: int = 0,
+        fields: list[str] | None = None,
+        filters: dict[str, Any] | None = None,
+        sort_by: SortOrder | None = None,
+        enable_facets: bool = True,
+        enable_suggestions: bool = True,
+        expand_query: bool = True,
+        highlight_results: bool = True,
+    ) -> SearchResultCollection:
+        """Execute a search query.
 
         Args:
-            query_string: Search query
-            limit: Results per page
-            page: Page number (1-indexed)
+            query: Search query string
+            limit: Maximum number of results to return
+            offset: Number of results to skip
+            fields: Optional list of fields to search in
+            filters: Optional filters to apply
+            sort_by: Sort order for results
+            enable_facets: Whether to compute facets
+            enable_suggestions: Whether to generate suggestions
+            expand_query: Whether to apply query expansion
+            highlight_results: Whether to highlight matches
 
         Returns:
-            SearchResult with hits, facets, and metadata
+            Search results with matches, facets, and metadata
         """
         start_time = time.time()
 
-        # Check cache
-        cache_key = f"{query_string}:{limit}:{page}"
-        if cache_key in self.cache:
-            self.stats["cache_hits"] += 1
-            cached_result = self.cache[cache_key]
-            # Update search time
-            if isinstance(cached_result, SearchResult):
-                cached_result.search_time_ms = (time.time() - start_time) * 1000
-                return cached_result
+        if not query or not query.strip():
+            return create_empty_results(query, limit, self.backend.__class__.__name__)
 
-        self.stats["cache_misses"] += 1
+        limit = min(max(1, limit), self.max_limit)
+        offset = max(0, offset)
 
-        # Parse query with custom parser for understanding
-        parsed = self.query_parser.parse(query_string)
+        try:
+            parsed_query = self.query_parser.parse(query.strip())
 
-        # Check for negated terms that we need to filter
-        negated_terms = [t.text.lower() for t in parsed.terms if t.is_negated]
+            if expand_query and self.query_expander:
+                parsed_query = self.query_expander.expand_query(parsed_query)
 
-        # Build Whoosh query
-        whoosh_query = self._build_whoosh_query(parsed)
-
-        # Search
-        with self.ix.searcher() as searcher:
-            # Calculate pagination
-            offset = (page - 1) * limit
-
-            # Execute search with proper pagination
-            results = searcher.search_page(
-                whoosh_query,
-                pagenum=page,
-                pagelen=limit,
-                terms=True,  # Enable term highlighting
+            search_query = SearchQuery(
+                query=parsed_query,
+                limit=limit,
+                offset=offset,
+                fields=fields or [],
+                facet_fields=self._get_facet_fields() if enable_facets else None,
+                highlight=highlight_results and self.enable_highlighting,
+                filters=filters or {},
             )
 
-            # Get total count of matches (before filtering)
-            total_matches = len(results)
-            if hasattr(results, "total"):
-                total_matches = results.total
+            backend_result = self.backend.search(search_query)
 
-            # Build hits
-            hits = []
-            for rank, result in enumerate(results, start=offset + 1):
-                # Create Entry from stored fields
-                entry = Entry(
-                    key=result["key"],
-                    type=EntryType(result["type"]),
-                    title=result["title"],
-                    authors=result.get("authors", "").split()
-                    if result.get("authors")
-                    else [],
-                    year=result.get("year"),
-                    venue=result.get("venue"),
-                    abstract=result.get("abstract"),
-                    keywords=result.get("keywords", "").split()
-                    if result.get("keywords")
-                    else [],
-                    doi=result.get("doi"),
-                    url=result.get("url"),
+            ranked_matches = backend_result.results
+            if ranked_matches and self.ranker:
+                if self.repository:
+                    for match in ranked_matches:
+                        try:
+                            entry = self.repository.find(match.entry_key)
+                            if entry:
+                                match.entry = entry
+                        except Exception:
+                            pass
+
+                from .ranking import ScoringContext
+
+                query_terms = self._extract_query_terms(parsed_query)
+                context = ScoringContext(
+                    total_docs=self._index_size,
+                    avg_doc_length=100,
+                    doc_frequencies=self._estimate_doc_frequencies(query_terms),
+                    query_time_ms=backend_result.took_ms or 0,
                 )
 
-                # Calculate freshness score
-                freshness_score = 0.0
-                if entry.year:
-                    years_old = 2024 - entry.year
-                    freshness_score = max(0, 1.0 - (years_old / 50.0))
-
-                # Create hit with combined score
-                combined_score = result.score + (
-                    freshness_score * 0.5
-                )  # Apply freshness boost
-                hit = SearchHit(
-                    entry=entry,
-                    score=combined_score,
-                    rank=rank,
-                    text_score=result.score,
-                    freshness_score=freshness_score,
-                    field_boosts={},
-                    highlights=self._extract_highlights(result),
-                )
-
-                # Filter out results containing negated terms
-                skip = False
-                if negated_terms:
-                    entry_text = entry.text.lower()
-                    for neg_term in negated_terms:
-                        if neg_term in entry_text:
-                            skip = True
-                            break
-
-                if not skip:
-                    hits.append(hit)
-
-            # Re-sort hits by combined score
-            hits.sort(key=lambda h: h.score, reverse=True)
-
-            # Rebuild hits with correct ranks
-            sorted_hits = []
-            for i, hit in enumerate(hits, start=1):
-                sorted_hit = SearchHit(
-                    entry=hit.entry,
-                    score=hit.score,
-                    rank=i,
-                    text_score=hit.text_score,
-                    freshness_score=hit.freshness_score,
-                    field_boosts=hit.field_boosts,
-                    highlights=hit.highlights,
-                )
-                sorted_hits.append(sorted_hit)
-            hits = sorted_hits
-
-            # Build facets
-            facets = self._build_facets(searcher, whoosh_query)
-
-            # Get suggestions
-            suggestions = self._get_suggestions(searcher, query_string)
-
-            # Check spelling
-            spell_corrections = self._check_spelling(searcher, query_string)
-
-            # For negated queries, we need to adjust total_found
-            if negated_terms:
-                # The total is the number of filtered results
-                # This is an approximation since we only filtered one page
-                total_found = len(hits)
+                ranked_matches = self.ranker.rank(ranked_matches, query_terms, context)
+                total_before_pagination = backend_result.total
             else:
-                total_found = total_matches
+                total_before_pagination = backend_result.total
 
-            # Create result
-            result = SearchResult(
-                query=query_string,
-                hits=hits,
-                total_found=total_found,
-                search_time_ms=(time.time() - start_time) * 1000,
-                facets=facets,
-                suggestions=suggestions,
-                spell_corrections=spell_corrections,
-                parsed_query={"terms": [str(t) for t in parsed.terms]},
-                expanded_terms=[],
+            builder = ResultsBuilder()
+            builder.set_pagination(offset, limit, total_before_pagination)
+            builder.set_query_info(query, parsed_query)
+            builder.set_timing(backend_result.took_ms or 0)
+            builder.set_backend_info(self.backend.__class__.__name__, self._index_size)
+
+            for match in ranked_matches:
+                builder.add_match(
+                    match.entry_key,
+                    match.score,
+                    entry=getattr(match, "entry", None),
+                    highlights=match.highlights,
+                )
+
+            if enable_facets and backend_result.facets:
+                for field, values in backend_result.facets.items():
+                    field_display_name = self._get_field_display_name(field)
+                    builder.add_facet(field, field_display_name, values)
+
+            if enable_suggestions:
+                suggestions = self._generate_suggestions(
+                    query, parsed_query, backend_result.total
+                )
+                for suggestion in suggestions:
+                    builder.add_suggestion(
+                        suggestion.suggestion,
+                        suggestion.suggestion_type,
+                        suggestion.confidence,
+                        suggestion.description,
+                    )
+
+            results = builder.build()
+
+            if sort_by and sort_by != SortOrder.RELEVANCE:
+                results = results.sort_by(sort_by)
+
+            total_time = int((time.time() - start_time) * 1000)
+            self._last_query_time = total_time
+
+            return results
+
+        except Exception as e:
+            error_results = create_empty_results(
+                query, limit, self.backend.__class__.__name__
             )
+            error_results.suggestions = [
+                SearchSuggestion(
+                    suggestion=query,
+                    suggestion_type="error",
+                    confidence=0.0,
+                    description=f"Search error: {str(e)}",
+                )
+            ]
+            return error_results
 
-            # Cache result
-            self.cache[cache_key] = result
+    def suggest(self, prefix: str, field: str = "title", limit: int = 10) -> list[str]:
+        """Get search suggestions for a prefix.
 
-            # Update statistics
-            self.stats["total_searches"] += 1
-            self.stats["total_search_time_ms"] += result.search_time_ms
-            self.stats["avg_search_time_ms"] = (
-                self.stats["total_search_time_ms"] / self.stats["total_searches"]
-            )
+        Args:
+            prefix: Text prefix to complete
+            field: Field to search for completions
+            limit: Maximum number of suggestions
 
-            # Add to history
-            self.history.add_search(
-                query_string, result.total_found, result.search_time_ms
-            )
+        Returns:
+            List of suggested completions
+        """
+        if hasattr(self.backend, "suggest"):
+            return self.backend.suggest(prefix, field, limit)
+        return []
 
-            return result
+    def more_like_this(
+        self, entry_key: str, limit: int = 10, min_score: float = 0.1
+    ) -> SearchResultCollection:
+        """Find entries similar to a given entry.
 
-    def _build_whoosh_query(self, parsed):
-        """Build Whoosh query from parsed query."""
-        # Check if we have negated terms to handle specially
-        has_negated = any(t.is_negated for t in parsed.terms)
+        Args:
+            entry_key: Key of reference entry
+            limit: Maximum number of similar entries
+            min_score: Minimum similarity score threshold
 
-        # For simple queries with boolean operators (but no negation)
-        original_upper = parsed.original.upper()
-        if (
-            not has_negated
-            and any(op in original_upper for op in [" OR ", " AND "])
-            and not parsed.has_field_queries()
-        ):
-            return self.whoosh_parser.parse(parsed.original)
+        Returns:
+            Search results with similar entries
+        """
+        try:
+            if hasattr(self.backend, "more_like_this"):
+                backend_result = self.backend.more_like_this(
+                    entry_key, limit, min_score
+                )
 
-        # For phrase queries (but no negation)
-        if (
-            not has_negated
-            and parsed.original.startswith('"')
-            and parsed.original.endswith('"')
-        ):
-            return self.whoosh_parser.parse(parsed.original)
+                builder = ResultsBuilder()
+                builder.set_pagination(0, limit, backend_result.total)
+                builder.set_query_info(f"more_like:{entry_key}")
+                builder.set_timing(backend_result.took_ms or 0)
+                builder.set_backend_info(
+                    self.backend.__class__.__name__, self._index_size
+                )
 
-        # For field-specific queries or queries with negation
-        if parsed.has_field_queries() or has_negated:
-            query_parts = []
+                for match in backend_result.results:
+                    builder.add_match(match.entry_key, match.score)
 
-            for term in parsed.terms:
-                # Skip negated terms - we filter them after search
-                if term.is_negated:
-                    continue
+                return builder.build()
 
-                # Map field names to index fields
-                if term.field != QueryField.ALL:
-                    field_map = {
-                        QueryField.AUTHOR: "authors",
-                        QueryField.TITLE: "title",
-                        QueryField.YEAR: "year",
-                        QueryField.VENUE: "venue",
-                        QueryField.KEYWORDS: "keywords",
-                        QueryField.ABSTRACT: "abstract",
-                        QueryField.TYPE: "type",
-                    }
-                    field_name = field_map.get(term.field, "content")
+        except Exception:
+            pass
 
-                    # Handle different query types
-                    if term.is_phrase:
-                        query_parts.append(f'{field_name}:"{term.text}"')
-                    elif ".." in term.text and term.field == QueryField.YEAR:
-                        # Year range
-                        start, end = term.text.split("..")
-                        query_parts.append(f"{field_name}:[{start} TO {end}]")
-                    else:
-                        query_parts.append(f"{field_name}:{term.text}")
-                else:
-                    # General search term
-                    if term.is_phrase:
-                        query_parts.append(f'"{term.text}"')
-                    else:
-                        query_parts.append(term.text)
-
-            query_str = " ".join(query_parts) if query_parts else "*"
-            return self.whoosh_parser.parse(query_str)
-
-        # Default: use original query
-        return self.whoosh_parser.parse(parsed.original)
-
-    def _extract_highlights(self, result) -> dict[str, list[str]]:
-        """Extract highlighted snippets from search result."""
-        highlights = {}
-
-        # Get highlighted fields
-        if hasattr(result, "highlights"):
-            for field in ["title", "abstract", "authors"]:
-                if field in result:
-                    highlight = result.highlights(field)
-                    if highlight:
-                        highlights[field] = [highlight]
-
-        return highlights
-
-    def _build_facets(self, searcher, query) -> dict[str, dict[str, int]]:
-        """Build facets for search results."""
-        facets = defaultdict(lambda: defaultdict(int))
-
-        # Search without limit to get all matching docs
-        results = searcher.search(query, limit=None)
-
-        for result in results:
-            # Type facet
-            if "type" in result:
-                facets["type"][result["type"]] += 1
-
-            # Year facet
-            if "year" in result and result["year"]:
-                facets["year"][str(result["year"])] += 1
-
-            # Venue facet (top venues only)
-            if "venue" in result and result["venue"]:
-                facets["venue"][result["venue"]] += 1
-
-        # Convert to regular dict
-        return {k: dict(v) for k, v in facets.items()}
-
-    def _get_suggestions(self, searcher, query: str) -> list[str]:
-        """Get query suggestions."""
-        suggestions = []
-
-        # Get terms from index
-        reader = searcher.reader()
-
-        # Find related terms
-        for fieldname in ["title", "abstract", "keywords"]:
-            try:
-                # Get top terms from field
-                terms = list(reader.field_terms(fieldname))[:5]
-                suggestions.extend(terms)
-            except (AttributeError, KeyError):
-                # Field may not exist or reader doesn't support it
-                continue
-
-        return list(set(suggestions))[:10]
-
-    def _check_spelling(self, searcher, query: str) -> list[tuple[str, str]]:
-        """Check spelling and suggest corrections."""
-        corrections = []
-
-        # Simple spell checking using Whoosh corrector
-        corrector = searcher.corrector("content")
-
-        for word in query.split():
-            if len(word) > 2:  # Skip short words
-                suggestions = corrector.suggest(word, limit=1)
-                if suggestions and suggestions[0] != word:
-                    corrections.append((word, suggestions[0]))
-
-        return corrections
-
-    def clear_index(self) -> None:
-        """Clear all entries from the index."""
-        # Create new empty index (this overwrites existing)
-        self.ix = index.create_in(str(self.index_dir), self.schema)
-
-        # Clear cache
-        self.cache.clear()
-
-        # Reset stats
-        self.stats["total_searches"] = 0
-        self.stats["cache_hits"] = 0
-        self.stats["cache_misses"] = 0
-
-    def optimize_index(self) -> None:
-        """Optimize the search index for better performance."""
-        writer = self.ix.writer()
-        writer.commit(optimize=True)
-
-    def get_stats(self) -> dict[str, Any]:
-        """Get comprehensive search engine statistics."""
-        cache_total = self.stats["cache_hits"] + self.stats["cache_misses"]
-        cache_hit_rate = (
-            self.stats["cache_hits"] / cache_total if cache_total > 0 else 0
+        return create_empty_results(
+            f"more_like:{entry_key}", limit, self.backend.__class__.__name__
         )
 
+    def validate_query(self, query: str) -> list[str]:
+        """Validate a query string and return any issues.
+
+        Args:
+            query: Query string to validate
+
+        Returns:
+            List of validation error messages
+        """
+        try:
+            parsed_query = self.query_parser.parse(query)
+            return self.query_parser.validate_query(parsed_query)
+        except Exception as e:
+            return [f"Query parsing error: {str(e)}"]
+
+    def get_statistics(self) -> dict[str, Any]:
+        """Get search engine statistics.
+
+        Returns:
+            Dictionary with engine and backend statistics
+        """
+        backend_stats = self.backend.get_statistics()
+
         return {
-            "total_searches": self.stats["total_searches"],
-            "cache_hits": self.stats["cache_hits"],
-            "cache_misses": self.stats["cache_misses"],
-            "cache_hit_rate": cache_hit_rate,
-            "avg_search_time_ms": self.stats["avg_search_time_ms"],
-            "index_size": self.ix.doc_count(),
-            "cache_size": 0,  # diskcache.Cache doesn't provide direct len()
+            "engine": {
+                "index_size": self._index_size,
+                "last_query_time_ms": self._last_query_time,
+                "backend_type": self.backend.__class__.__name__,
+                "highlighting_enabled": self.enable_highlighting,
+                "query_expansion_enabled": self.enable_query_expansion,
+            },
+            "backend": backend_stats,
+            "field_config": {
+                "total_fields": len(self.field_config.fields),
+                "searchable_fields": len(self.field_config.get_searchable_fields()),
+                "facet_fields": len(self.field_config.get_facet_fields()),
+            },
         }
 
+    def commit(self) -> None:
+        """Commit any pending changes to the search index."""
+        self.backend.commit()
 
-class FileLocator:
-    """Placeholder for file location functionality.
+    def _get_facet_fields(self) -> list[str]:
+        """Get list of fields suitable for faceting."""
+        return self.field_config.get_facet_fields()
 
-    Will be implemented in locate.py module.
-    """
+    def _get_field_display_name(self, field: str) -> str:
+        """Get human-readable display name for a field."""
+        display_names = {
+            "entry_type": "Entry Type",
+            "author": "Authors",
+            "journal": "Journal",
+            "booktitle": "Book/Conference",
+            "year": "Publication Year",
+            "keywords": "Keywords",
+            "publisher": "Publisher",
+        }
+        return display_names.get(field, field.title())
+
+    def _generate_suggestions(
+        self, original_query: str, parsed_query: Any, result_count: int
+    ) -> list[SearchSuggestion]:
+        """Generate search suggestions based on query and results."""
+        suggestions = []
+
+        if self.query_expander:
+            try:
+                expander_suggestions = self.query_expander.suggest_corrections(
+                    parsed_query, 2
+                )
+                for suggestion in expander_suggestions:
+                    suggestions.append(
+                        SearchSuggestion(
+                            suggestion=suggestion.suggested_query,
+                            suggestion_type=suggestion.suggestion_type,
+                            confidence=suggestion.confidence,
+                            description=suggestion.explanation,
+                        )
+                    )
+            except Exception:
+                pass
+
+        if result_count < 3 and self.query_expander:
+            try:
+                relaxed_query = self.query_expander.relax_query(parsed_query, 1)
+                if relaxed_query.to_string() != parsed_query.to_string():
+                    suggestions.append(
+                        SearchSuggestion(
+                            suggestion=relaxed_query.to_string(),
+                            suggestion_type="relaxation",
+                            confidence=0.7,
+                            description="Try a broader search with relaxed constraints",
+                        )
+                    )
+            except Exception:
+                pass
+
+        if result_count < 5 and ":" in original_query:
+            suggestions.append(
+                SearchSuggestion(
+                    suggestion=original_query.replace(":", " "),
+                    suggestion_type="field_expansion",
+                    confidence=0.6,
+                    description="Search across all fields instead of specific field",
+                )
+            )
+
+        return suggestions[:3]
+
+    def _extract_query_terms(self, parsed_query: Any) -> list[str]:
+        """Extract search terms from parsed query."""
+        terms = []
+
+        from .query.parser import (
+            BooleanQuery,
+            FieldQuery,
+            FuzzyQuery,
+            PhraseQuery,
+            TermQuery,
+            WildcardQuery,
+        )
+
+        def extract_from_query(q):
+            if isinstance(q, TermQuery):
+                terms.append(q.term)
+            elif isinstance(q, PhraseQuery):
+                terms.extend(q.phrase.split())
+            elif isinstance(q, FieldQuery):
+                extract_from_query(q.query)
+            elif isinstance(q, BooleanQuery):
+                for subquery in q.queries:
+                    extract_from_query(subquery)
+            elif isinstance(q, WildcardQuery):
+                base_term = q.pattern.replace("*", "").replace("?", "")
+                if base_term:
+                    terms.append(base_term)
+            elif isinstance(q, FuzzyQuery):
+                terms.append(q.term)
+
+        extract_from_query(parsed_query)
+        return terms
+
+    def _estimate_doc_frequencies(self, terms: list[str]) -> dict[str, int]:
+        """Estimate document frequencies for terms."""
+        frequencies = {}
+        stop_words = {"the", "a", "an", "and", "or", "but", "in", "on", "at"}
+
+        if self._index_size < 10:
+            for term in terms:
+                term_lower = term.lower()
+                if term_lower in stop_words:
+                    frequencies[term_lower] = max(1, self._index_size - 1)
+                else:
+                    frequencies[term_lower] = 1
+        else:
+            for term in terms:
+                term_lower = term.lower()
+                if term_lower in stop_words:
+                    frequencies[term_lower] = max(1, int(self._index_size * 0.5))
+                elif len(term_lower) <= 3:
+                    frequencies[term_lower] = max(1, int(self._index_size * 0.2))
+                else:
+                    frequencies[term_lower] = max(1, int(self._index_size * 0.1))
+        return frequencies
+
+
+class SearchEngineBuilder:
+    """Builder for constructing SearchEngine instances."""
 
     def __init__(self):
-        """Initialize file locator."""
-        pass
+        self.backend: SearchBackend | None = None
+        self.field_config: FieldConfiguration | None = None
+        self.enable_highlighting = True
+        self.enable_query_expansion = True
+        self.synonym_expander = None
+        self.spell_checker = None
+        self.ranker = None
+        self.repository = None
+
+    def with_backend(self, backend: SearchBackend) -> "SearchEngineBuilder":
+        """Set the search backend."""
+        self.backend = backend
+        return self
+
+    def with_field_config(self, config: FieldConfiguration) -> "SearchEngineBuilder":
+        """Set the field configuration."""
+        self.field_config = config
+        return self
+
+    def with_highlighting(self, enabled: bool) -> "SearchEngineBuilder":
+        """Enable or disable result highlighting."""
+        self.enable_highlighting = enabled
+        return self
+
+    def with_query_expansion(self, enabled: bool) -> "SearchEngineBuilder":
+        """Enable or disable query expansion."""
+        self.enable_query_expansion = enabled
+        return self
+
+    def with_synonym_expander(self, synonym_expander) -> "SearchEngineBuilder":
+        """Set custom synonym expander."""
+        self.synonym_expander = synonym_expander
+        self.enable_query_expansion = True  # Ensure expansion is enabled
+        return self
+
+    def with_spell_checker(self, spell_checker) -> "SearchEngineBuilder":
+        """Set custom spell checker."""
+        self.spell_checker = spell_checker
+        return self
+
+    def with_ranker(self, ranker) -> "SearchEngineBuilder":
+        """Set custom ranking algorithm."""
+        self.ranker = ranker
+        return self
+
+    def with_repository(self, repository) -> "SearchEngineBuilder":
+        """Set entry repository for retrieving full entry data."""
+        self.repository = repository
+        return self
+
+    def build(self) -> SearchEngine:
+        """Build the SearchEngine instance."""
+        engine = SearchEngine(
+            backend=self.backend,
+            field_config=self.field_config,
+            enable_highlighting=self.enable_highlighting,
+            enable_query_expansion=self.enable_query_expansion,
+            ranker=self.ranker,
+            repository=self.repository,
+        )
+
+        if self.enable_query_expansion and (
+            self.synonym_expander or self.spell_checker
+        ):
+            from .query import QueryExpander
+
+            engine.query_expander = QueryExpander(
+                spell_checker=self.spell_checker, synonym_expander=self.synonym_expander
+            )
+
+        return engine
+
+
+def create_default_engine() -> SearchEngine:
+    """Create a SearchEngine with default configuration."""
+    return SearchEngineBuilder().build()
+
+
+def create_memory_engine(
+    enable_highlighting: bool = True, enable_query_expansion: bool = True
+) -> SearchEngine:
+    """Create a SearchEngine with in-memory backend."""
+    return (
+        SearchEngineBuilder()
+        .with_backend(MemoryBackend())
+        .with_highlighting(enable_highlighting)
+        .with_query_expansion(enable_query_expansion)
+        .build()
+    )
+
+
+class SearchServiceBuilder:
+    """Builder for SearchService with repository integration."""
+
+    def __init__(self):
+        """Initialize builder."""
+        self._engine_builder = SearchEngineBuilder()
+        self._repository = None
+        self._event_bus = None
+        self._config = {}
+
+    def with_whoosh(self, index_dir: Path):
+        """Configure with Whoosh backend."""
+        from .backends.whoosh import WhooshBackend
+
+        backend = WhooshBackend(index_dir)
+        self._engine_builder = self._engine_builder.with_backend(backend)
+        return self
+
+    def with_memory(self):
+        """Configure with memory backend."""
+        from .backends.memory import MemoryBackend
+
+        backend = MemoryBackend()
+        self._engine_builder = self._engine_builder.with_backend(backend)
+        return self
+
+    def with_repository(self, repository):
+        """Configure with entry repository."""
+        self._repository = repository
+        return self
+
+    def with_events(self, event_bus):
+        """Configure with event bus."""
+        self._event_bus = event_bus
+        return self
+
+    def with_config(self, config: dict):
+        """Configure with search config."""
+        self._config.update(config)
+        if config.get("expand_queries"):
+            self._engine_builder = self._engine_builder.with_query_expansion(True)
+        if config.get("enable_highlighting", True):
+            self._engine_builder = self._engine_builder.with_highlighting(True)
+        return self
+
+    def with_synonyms(self, synonyms: dict):
+        """Configure with synonyms."""
+        self._config["synonyms"] = synonyms
+        return self
+
+    def with_fields(self, fields: dict):
+        """Configure with field configuration."""
+        self._config["fields"] = fields
+        return self
+
+    def build(self) -> "SearchService":
+        """Build the SearchService."""
+        if "synonyms" in self._config:
+            from .indexing.analyzers import SynonymExpander
+
+            synonym_expander = SynonymExpander(self._config["synonyms"])
+            self._engine_builder = self._engine_builder.with_synonym_expander(
+                synonym_expander
+            )
+
+        if "fields" in self._config:
+            from .indexing.fields import FieldConfiguration
+
+            field_config = FieldConfiguration()
+
+            for field_name, settings in self._config["fields"].items():
+                if "boost" in settings:
+                    if field_name in field_config.fields:
+                        field_config.fields[field_name].boost = settings["boost"]
+                if "type" in settings:
+                    from .indexing.fields import FieldDefinition, FieldType
+
+                    field_type = FieldType(settings["type"])
+                    if field_name not in field_config.fields:
+                        field_config.fields[field_name] = FieldDefinition(
+                            name=field_name,
+                            field_type=field_type,
+                            boost=settings.get("boost", 1.0),
+                            indexed=settings.get("indexed", True),
+                            stored=settings.get("stored", True),
+                            analyzed=settings.get("analyzed", True),
+                            analyzer=settings.get("analyzer"),
+                        )
+                    else:
+                        field_config.fields[field_name].field_type = field_type
+                if "analyzer" in settings:
+                    if field_name in field_config.fields:
+                        field_config.fields[field_name].analyzer = settings["analyzer"]
+
+            self._engine_builder = self._engine_builder.with_field_config(field_config)
+
+            if not self._engine_builder.ranker and any(
+                field.boost != 1.0 for field in field_config.fields.values()
+            ):
+                from .ranking import BM25Ranker, FieldWeights
+
+                field_weights = FieldWeights(
+                    {
+                        field_name: field_def.boost
+                        for field_name, field_def in field_config.fields.items()
+                    }
+                )
+                self._engine_builder = self._engine_builder.with_ranker(
+                    BM25Ranker(field_weights=field_weights)
+                )
+
+        engine = self._engine_builder.build()
+        service = SearchService(engine)
+        service.backend = engine.backend
+        service._repository = self._repository
+        service._event_bus = self._event_bus
+        service.repository = self._repository
+        service.event_bus = self._event_bus
+        service.config = self._config.copy()
+        return service
+
+
+class SearchService:
+    """High-level search service providing convenience methods."""
+
+    def __init__(
+        self,
+        engine: SearchEngine | None = None,
+        backend: SearchBackend | None = None,
+        repository=None,
+        event_bus=None,
+    ):
+        """Initialize search service.
+
+        Args:
+            engine: SearchEngine instance (default: create new memory engine)
+            backend: Search backend (for compatibility, creates engine if provided)
+            repository: Entry repository for result hydration
+            event_bus: Event bus for search events
+        """
+        if engine:
+            self.engine = engine
+        elif backend:
+            # Create engine with provided backend for compatibility
+            self.engine = SearchEngine(backend=backend)
+        else:
+            self.engine = create_memory_engine()
+
+        self._entry_cache: dict[str, BibEntry] = {}
+        self._repository = repository
+        self._event_bus = event_bus
+
+        # Public properties for tests and builder
+        self.repository = repository
+        self.event_bus = event_bus
+        self.backend = self.engine.backend  # Expose backend for tests
+        self.config: dict = {}  # Configuration dict for builder
+
+        # Subscribe to events if event bus is provided
+        if self._event_bus:
+            self._subscribe_to_events()
+
+    def add_entries(self, entries: list[BibEntry]) -> None:
+        """Add entries to search index and cache."""
+        for entry in entries:
+            self._entry_cache[entry.key] = entry
+
+        self.engine.index_entries(entries)
+        self.engine.commit()
+
+    def search_entries(
+        self,
+        query: str,
+        limit: int = 20,
+        offset: int = 0,
+        include_entries: bool = True,
+        **kwargs,
+    ) -> SearchResultCollection:
+        """Search for entries and optionally hydrate results.
+
+        Args:
+            query: Search query
+            limit: Maximum results
+            offset: Results offset
+            include_entries: Whether to include full entry objects in results
+            **kwargs: Additional search parameters
+
+        Returns:
+            Search results with optional entry objects
+        """
+        results = self.engine.search(query, limit, offset, **kwargs)
+
+        if include_entries:
+            valid_matches = []
+            for match in results.matches:
+                entry = None
+
+                if self._repository:
+                    try:
+                        entry = self._repository.find(match.entry_key)
+                        if entry:
+                            match.entry = entry
+                            self._entry_cache[match.entry_key] = entry
+                            valid_matches.append(match)
+                    except Exception:
+                        pass
+                elif match.entry_key in self._entry_cache:
+                    match.entry = self._entry_cache[match.entry_key]
+                    valid_matches.append(match)
+                else:
+                    valid_matches.append(match)
+
+            results.matches = valid_matches
+            results.total = len(valid_matches)
+
+        return results
+
+    def remove_entry(self, entry_key: str) -> bool:
+        """Remove entry from index and cache."""
+        self._entry_cache.pop(entry_key, None)
+        return self.engine.remove_entry(entry_key)
+
+    def clear_all(self) -> None:
+        """Clear all entries from index and cache."""
+        self._entry_cache.clear()
+        self.engine.clear_index()
+
+    def get_entry(self, entry_key: str) -> BibEntry | None:
+        """Get cached entry by key."""
+        return self._entry_cache.get(entry_key)
+
+    def get_cached_entry_count(self) -> int:
+        """Get number of cached entries."""
+        return len(self._entry_cache)
+
+    def get_search_statistics(self) -> dict[str, Any]:
+        """Get comprehensive search statistics."""
+        engine_stats = self.engine.get_statistics()
+
+        if "backend" in engine_stats and "total_documents" in engine_stats["backend"]:
+            engine_stats["total_documents"] = engine_stats["backend"]["total_documents"]
+
+        engine_stats["service"] = {
+            "cached_entries": len(self._entry_cache),
+        }
+        return engine_stats
+
+    def index_all(self, batch_size: int | None = None) -> int:
+        """Index all entries from repository."""
+        if not self._repository:
+            return 0
+
+        entries = self._repository.find_all()
+
+        if batch_size and len(entries) > batch_size:
+            total_indexed = 0
+            for i in range(0, len(entries), batch_size):
+                batch = entries[i : i + batch_size]
+                self.add_entries(batch)
+                total_indexed += len(batch)
+
+                if self._event_bus:
+                    from datetime import datetime
+
+                    from ..storage.events import Event, EventType
+
+                    progress_event = Event(
+                        type=EventType.INDEX_PROGRESS,
+                        timestamp=datetime.now(),
+                        data={"indexed": total_indexed, "total": len(entries)},
+                    )
+                    self._event_bus.publish(progress_event)
+            return total_indexed
+        else:
+            self.add_entries(entries)
+            total_indexed = len(entries)
+
+            if self._event_bus:
+                from datetime import datetime
+
+                from ..storage.events import Event, EventType
+
+                progress_event = Event(
+                    type=EventType.INDEX_PROGRESS,
+                    timestamp=datetime.now(),
+                    data={"indexed": total_indexed, "total": len(entries)},
+                )
+                self._event_bus.publish(progress_event)
+
+            return total_indexed
+
+    def index_entry(self, entry: BibEntry) -> None:
+        """Index a single entry."""
+        self.add_entries([entry])
+
+    def search(self, query: str, **kwargs) -> SearchResultCollection:
+        """Search with simple interface."""
+        return self.search_entries(query, **kwargs)
+
+    def delete_entry(self, entry_key: str) -> bool:
+        """Delete entry (alias for remove_entry)."""
+        return self.remove_entry(entry_key)
+
+    def clear_index(self) -> None:
+        """Clear index (alias for clear_all)."""
+        self.clear_all()
+
+    def get_statistics(self) -> dict[str, Any]:
+        """Get statistics (alias for get_search_statistics)."""
+        return self.get_search_statistics()
+
+    def _subscribe_to_events(self) -> None:
+        """Subscribe to relevant events for automatic indexing."""
+        from ..storage.events import EventType
+
+        if self._event_bus and hasattr(self._event_bus, "subscribe"):
+            self._event_bus.subscribe(
+                EventType.ENTRY_CREATED, self._handle_entry_created
+            )
+            self._event_bus.subscribe(
+                EventType.ENTRY_UPDATED, self._handle_entry_updated
+            )
+            self._event_bus.subscribe(
+                EventType.ENTRY_DELETED, self._handle_entry_deleted
+            )
+            self._event_bus.subscribe(
+                EventType.STORAGE_CLEARED, self._handle_storage_cleared
+            )
+
+    def _handle_entry_created(self, event) -> None:
+        """Handle entry created event."""
+        if "entry" in event.data:
+            entry = event.data["entry"]
+            self.index_entry(entry)
+
+    def _handle_entry_updated(self, event) -> None:
+        """Handle entry updated event."""
+        if "entry_key" in event.data:
+            entry_key = event.data["entry_key"]
+            self.delete_entry(entry_key)
+            if "new_entry" in event.data:
+                self.index_entry(event.data["new_entry"])
+
+    def _handle_entry_deleted(self, event) -> None:
+        """Handle entry deleted event."""
+        if "entry_key" in event.data:
+            entry_key = event.data["entry_key"]
+            self.delete_entry(entry_key)
+
+    def _handle_storage_cleared(self, event) -> None:
+        """Handle storage cleared event."""
+        self.clear_index()
