@@ -15,6 +15,7 @@
    "python-structlog"       ; Structured logging
    "python-diskcache"       ; Disk-based caching
    "python-bibtexparser"    ; BibTeX parsing
+   "python-pyenchant"       ; Spell checking
    
    ;; Development tools
    "python-pytest"          ; Testing framework
