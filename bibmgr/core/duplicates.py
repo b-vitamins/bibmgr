@@ -81,13 +81,59 @@ class DuplicateDetector:
 
         return text
 
+    def _normalize_author(self, author: str) -> str:
+        """Normalize author name for comparison, handling initials."""
+        if not author:
+            return ""
+
+        # First apply basic text normalization
+        normalized = self._normalize_text(author)
+
+        # Handle author name variations
+        # Split by common delimiters (comma, and, &)
+        author_parts = re.split(r"[,&]|\sand\s", normalized)
+
+        normalized_parts = []
+        for part in author_parts:
+            part = part.strip()
+            if not part:
+                continue
+
+            # Split into words
+            words = part.split()
+            if len(words) >= 2:
+                # Assume format like "Smith John" or "John Smith"
+                # Extract surname (longest word typically)
+                surname = max(words, key=len)
+                # Extract initials from other words
+                initials = []
+                for word in words:
+                    if word != surname:
+                        if len(word) == 1:
+                            # Already an initial
+                            initials.append(word)
+                        elif len(word) > 1:
+                            # Take first letter as initial
+                            initials.append(word[0])
+
+                # Create normalized form: "surname initial1 initial2"
+                if initials:
+                    normalized_parts.append(f"{surname} {' '.join(sorted(initials))}")
+                else:
+                    normalized_parts.append(surname)
+            else:
+                # Single word, keep as is
+                normalized_parts.append(part)
+
+        return " ".join(normalized_parts)
+
     def _make_tay_key(self, entry: Entry) -> str:
         """Make normalized title-author-year key."""
         # Normalize title
         title = self._normalize_text(entry.title or "")
 
-        # Normalize authors
-        authors = self._normalize_text(entry.author or "")
+        # Normalize authors with special handling for initials
+        authors = self._normalize_author(entry.author or "")
 
         # Handle year tolerance
         if self.year_tolerance > 0 and entry.year:
