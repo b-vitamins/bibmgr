@@ -1,0 +1,23 @@
+{
+  "include": [
+    "bibmgr",
+    "tests"
+  ],
+  "exclude": [
+    "**/node_modules",
+    "**/__pycache__",
+    "tests/core/test_builders.py",
+    "tests/core/test_crossref.py",
+    "tests/core/test_duplicates.py",
+    "tests/core/test_integration.py",
+    "tests/core/test_sorting.py",
+    "tests/core/test_strings.py"
+  ],
+  "typeCheckingMode": "standard",
+  "reportMissingImports": true,
+  "reportMissingTypeStubs": false,
+  "reportOptionalMemberAccess": true,
+  "reportOptionalOperand": true,
+  "reportAttributeAccessIssue": true,
+  "pythonVersion": "3.11"
+}
