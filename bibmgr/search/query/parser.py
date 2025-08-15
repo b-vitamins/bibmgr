@@ -390,8 +390,11 @@ class QueryParser:
 
         return WildcardQuery(pattern, boost)
 
-    def _parse_term_query(self, query_string: str) -> TermQuery:
-        """Parse simple term query, possibly with boost."""
+    def _parse_term_query(self, query_string: str) -> TermQuery | BooleanQuery:
+        """Parse simple term query, possibly with boost.
+
+        If multiple terms are found, creates an implicit AND query.
+        """
         boost = 1.0
         term = query_string
 
@@ -400,7 +403,18 @@ class QueryParser:
             boost = float(boost_match.group(1))
             term = query_string[: boost_match.start()]
 
-        return TermQuery(term.strip(), boost)
+        term = term.strip()
+
+        # Split on whitespace to check for multiple terms
+        words = term.split()
+
+        if len(words) > 1:
+            # Multiple terms - create implicit AND query
+            term_queries: list[ParsedQuery] = [TermQuery(word, boost) for word in words]
+            return BooleanQuery(BooleanOperator.AND, term_queries)
+        else:
+            # Single term
+            return TermQuery(term, boost)
 
     def _parse_range_value(self, value: str) -> int | float | str:
         """Parse range value, trying to detect numeric values."""
