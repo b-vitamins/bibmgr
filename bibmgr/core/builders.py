@@ -1,69 +1,11 @@
 """Builder patterns for creating entries and collections."""
 
 import re
-from typing import Any, Union
+from typing import Any
 
 from .fields import EntryType
 from .models import Collection, Entry
 from .names import NameParser
-
-# Since Entry model doesn't have 'collections' field, we'll track it separately
-# Same for Collection model not having 'parent', 'children', 'metadata', 'smart_filters'
-# We'll create enhanced versions for the builder pattern
-
-
-class EntryWithExtras:
-    """Wrapper for Entry with additional fields for builder pattern."""
-
-    def __init__(
-        self, entry: Any, collections: set[str]
-    ):  # Accept any entry-like object
-        self._entry = entry
-        self.collections = list(collections)
-        # Delegate all attributes to the wrapped entry
-
-    def __getattr__(self, name):
-        return getattr(self._entry, name)
-
-
-class CollectionWithExtras:
-    """Wrapper for Collection with additional fields for builder pattern."""
-
-    def __init__(
-        self,
-        collection: Collection,
-        parent: Union[Collection, "CollectionWithExtras"] | None = None,
-        metadata: dict[str, Any] | None = None,
-        smart_filters: list[dict[str, Any]] | None = None,
-    ):
-        self._collection = collection
-        self.parent = parent
-        self.children: list[CollectionWithExtras] = []
-        self.metadata = metadata or {}
-        self.smart_filters = smart_filters or []
-        self.entry_keys = list(collection.entry_keys) if collection.entry_keys else []
-
-        # Add to parent's children if parent exists
-        if parent:
-            if isinstance(parent, CollectionWithExtras):
-                parent.children.append(self)
-            # For raw Collection, we can't add children
-
-    def __getattr__(self, name):
-        return getattr(self._collection, name)
-
-    def get_path(self) -> list[str]:
-        """Get hierarchical path as list of names."""
-        path = [self.name]
-        current = self.parent
-        while current:
-            path.insert(0, current.name)
-            if isinstance(current, CollectionWithExtras):
-                current = current.parent
-            else:
-                # Raw Collection doesn't have parent
-                break
-        return path
 
 
 class EntryBuilder:
@@ -224,102 +166,58 @@ class EntryBuilder:
         self._data["key"] = key
         return self
 
-    def build(self) -> Entry | EntryWithExtras | Any:  # Any for EntryWithCustom
-        """Build the entry."""
+    def build(self) -> Entry:
+        """Build the entry.
+        
+        Returns:
+            Entry object with all configured fields.
+            
+        Raises:
+            ValueError: If required fields are missing.
+            
+        Note:
+            Custom fields are stored in the 'custom' dict field.
+            Collections are not part of the Entry model and should be
+            handled separately by the caller.
+        """
         # Validate required fields
         if "key" not in self._data:
             raise ValueError("key is required")
         if "type" not in self._data:
             raise ValueError("type is required")
 
-        # Don't validate key format here - let validators handle it
-        # This allows building entries with issues that can be fixed later
-
         # Add tags if any
         if self._tags:
             self._data["tags"] = tuple(self._tags)
 
-        # Create entry - try with custom fields first
-        try:
-            entry = Entry(**self._data)
-        except TypeError:
-            # If custom fields caused an error, create without them
-            # and add them as attributes later
-            known_fields = {
-                "key",
-                "type",
-                "address",
-                "author",
-                "booktitle",
-                "chapter",
-                "crossref",
-                "edition",
-                "editor",
-                "howpublished",
-                "institution",
-                "journal",
-                "month",
-                "note",
-                "number",
-                "organization",
-                "pages",
-                "publisher",
-                "school",
-                "series",
-                "title",
-                "type_",
-                "volume",
-                "year",
-                "doi",
-                "url",
-                "isbn",
-                "issn",
-                "eprint",
-                "archiveprefix",
-                "primaryclass",
-                "abstract",
-                "keywords",
-                "file",
-                "annotation",
-                "comment",
-                "timestamp",
-                "added",
-                "modified",
-                "tags",
-            }
+        # Separate known fields from custom fields
+        known_fields = {
+            "key", "type", "address", "author", "booktitle", "chapter",
+            "crossref", "edition", "editor", "howpublished", "institution",
+            "journal", "month", "note", "number", "organization", "pages",
+            "publisher", "school", "series", "title", "type_", "volume",
+            "year", "doi", "url", "isbn", "issn", "eprint", "archiveprefix",
+            "primaryclass", "abstract", "keywords", "file", "annotation",
+            "comment", "timestamp", "custom", "added", "modified", "tags"
+        }
 
-            base_data = {k: v for k, v in self._data.items() if k in known_fields}
-            custom_data = {k: v for k, v in self._data.items() if k not in known_fields}
+        base_data = {k: v for k, v in self._data.items() if k in known_fields}
+        custom_data = {k: v for k, v in self._data.items() if k not in known_fields}
 
-            entry = Entry(**base_data)
+        # Add custom fields to the custom dict
+        if custom_data:
+            base_data["custom"] = custom_data
 
-            # If we have custom fields, we need to create a wrapper
-            if custom_data:
-                # Create a simple wrapper that delegates to entry
-                class EntryWithCustom:
-                    def __init__(self, entry, **custom):
-                        self._entry = entry
-                        for k, v in custom.items():
-                            setattr(self, k, v)
-
-                    def __getattr__(self, name):
-                        # First check custom attributes
-                        if hasattr(self, name):
-                            return getattr(self, name)
-                        # Then delegate to wrapped entry
-                        return getattr(self._entry, name)
-
-                entry_with_custom = EntryWithCustom(entry, **custom_data)
-                # If we have collections, wrap it further
-                if self._collections:
-                    return EntryWithExtras(entry_with_custom, self._collections)
-                return entry_with_custom
-
-        # If we have collections, wrap the entry
-        if self._collections:
-            return EntryWithExtras(entry, self._collections)
-
-        return entry
+        # Create and return the entry
+        return Entry(**base_data)
+    
+    def get_collections(self) -> list[str]:
+        """Get list of collection names this entry should be added to.
+        
+        Returns:
+            List of collection names.
+        """
+        return list(self._collections)
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "EntryBuilder":
@@ -365,7 +263,7 @@ class CollectionBuilder:
         self._description = description
         return self
 
-    def parent(self, parent: Collection | CollectionWithExtras) -> "CollectionBuilder":
+    def parent(self, parent: Collection) -> "CollectionBuilder":
         """Set parent collection."""
         self._parent = parent
         return self
@@ -431,8 +329,19 @@ class CollectionBuilder:
         self._smart_filters.clear()
         return self
 
-    def build(self) -> CollectionWithExtras:
-        """Build the collection."""
+    def build(self) -> Collection:
+        """Build the collection.
+        
+        Returns:
+            Collection object with configured fields.
+            
+        Raises:
+            ValueError: If required fields are missing.
+            
+        Note:
+            Smart filters and metadata are not part of the Collection
+            model and should be handled separately by the caller.
+        """
         # Validate
         if not self._name:
             raise ValueError("name is required")
@@ -445,37 +354,38 @@ class CollectionBuilder:
 
         # Add parent relationship
         if self._parent:
-            if isinstance(self._parent, CollectionWithExtras):
-                data["parent_id"] = self._parent._collection.id
-            else:
-                data["parent_id"] = self._parent.id
+            data["parent_id"] = self._parent.id
 
         # Add entries if any
         if self._entry_keys:
             data["entry_keys"] = tuple(sorted(self._entry_keys))
+            
+        # Add color/icon from metadata if present
+        if "color" in self._metadata:
+            data["color"] = self._metadata["color"]
+        if "icon" in self._metadata:
+            data["icon"] = self._metadata["icon"]
 
-        # Create base collection
-        collection = Collection(**data)
-
-        # Wrap with extras
-        wrapped = CollectionWithExtras(
-            collection,
-            parent=self._parent,
-            metadata=self._metadata.copy(),
-            smart_filters=self._smart_filters.copy(),
-        )
-
-        # Check for self-parent (this check should happen after building)
-        if self._parent:
-            parent_collection = (
-                self._parent._collection
-                if isinstance(self._parent, CollectionWithExtras)
-                else self._parent
-            )
-            if parent_collection == collection:
-                raise ValueError("Cannot be own parent")
-
-        return wrapped
+        # Create and return collection
+        return Collection(**data)
+    
+    def get_metadata(self) -> dict[str, Any]:
+        """Get metadata that was configured but not part of Collection model.
+        
+        Returns:
+            Dictionary of metadata.
+        """
+        # Exclude color/icon as they're in the model
+        return {k: v for k, v in self._metadata.items() 
+                if k not in ("color", "icon")}
+    
+    def get_smart_filters(self) -> list[dict[str, Any]]:
+        """Get smart filters configured for this collection.
+        
+        Returns:
+            List of smart filter definitions.
+        """
+        return self._smart_filters.copy()
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "CollectionBuilder":
@@ -491,29 +401,36 @@ class CollectionBuilder:
         return builder
 
     @classmethod
-    def from_collection(
-        cls, collection: Collection | CollectionWithExtras
-    ) -> "CollectionBuilder":
+    def from_collection(cls, collection: Collection) -> "CollectionBuilder":
         """Create builder from existing collection."""
         builder = cls()
         builder.name(collection.name)
         if collection.description:
             builder.description(collection.description)
-
-        # Copy metadata if it's a wrapped collection
-        if isinstance(collection, CollectionWithExtras):
-            for key, value in collection.metadata.items():
-                builder.metadata(key, value)
-
+        if collection.color:
+            builder.color(collection.color)
+        if collection.icon:
+            builder.icon(collection.icon)
+        if collection.entry_keys:
+            builder._entry_keys = set(collection.entry_keys)
         return builder
 
     @classmethod
-    def build_tree(cls, tree_dict: dict[str, Any]) -> list[CollectionWithExtras]:
-        """Build a tree of collections from nested dictionary."""
+    def build_tree(cls, tree_dict: dict[str, Any]) -> list[tuple[Collection, dict[str, Any]]]:
+        """Build a tree of collections from nested dictionary.
+        
+        Args:
+            tree_dict: Nested dictionary where keys are collection names
+                      and values are either metadata dicts or nested collections.
+                      
+        Returns:
+            List of (Collection, metadata) tuples in depth-first order.
+            Parent collections appear before their children.
+        """
         collections = []
 
         def build_level(
-            data: dict[str, Any], parent: CollectionWithExtras | None = None
+            data: dict[str, Any], parent: Collection | None = None
         ):
             for name, config in data.items():
                 if isinstance(config, dict):
@@ -530,7 +447,8 @@ class CollectionBuilder:
                         builder.metadata(key, value)
 
                     collection = builder.build()
-                    collections.append(collection)
+                    builder_metadata = builder.get_metadata()
+                    collections.append((collection, builder_metadata))
 
                     # Build children
                     if children:

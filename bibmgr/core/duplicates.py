@@ -27,7 +27,7 @@ class DuplicateDetector:
                     self.doi_map.setdefault(doi_normalized, []).append(entry)
 
             # Title-Author-Year duplicates
-            if entry.title and entry.author and entry.year:
+            if entry.title and entry.author and entry.year and self.year_tolerance == 0:
                 key = self._make_tay_key(entry)
                 self.title_author_year_map.setdefault(key, []).append(entry)
 
@@ -56,17 +56,37 @@ class DuplicateDetector:
         return doi
 
     def _normalize_text(self, text: str) -> str:
-        """Normalize text for comparison."""
+        """
+        Normalize text for robust comparison.
+
+        - Convert to lowercase
+        - Handle LaTeX commands
+        - Normalize Unicode to ASCII
+        - Remove articles and punctuation
+        """
         # Convert to lowercase
         text = text.lower()
 
-        # Remove LaTeX commands
-        text = re.sub(r"\\[a-zA-Z]+\*?", "", text)
+        # Handle common LaTeX commands
+        latex_replacements = {
+            r"\{\\latex\}": "latex",
+            r"\\latex": "latex",
+            r"\{\\tex\}": "tex",
+            r"\\tex": "tex",
+        }
+
+        for pattern, replacement in latex_replacements.items():
+            text = re.sub(pattern, replacement, text, flags=re.IGNORECASE)
+
+        # Remove other LaTeX commands
+        text = re.sub(r"\{\\[a-zA-Z]+\*?\}", " ", text)  # {\command}
+        text = re.sub(r"\\[a-zA-Z]+\*?\s*\{\}", " ", text)  # \command{}
+        text = re.sub(r"\\[a-zA-Z]+\*?", " ", text)  # \command
 
         # Remove braces
         text = text.replace("{", "").replace("}", "")
 
-        # Normalize Unicode to ASCII
+        # Normalize Unicode
         text = unicodedata.normalize("NFKD", text)
         text = "".join(c for c in text if not unicodedata.combining(c))
 
@@ -76,56 +96,83 @@ class DuplicateDetector:
         # Remove punctuation
         text = re.sub(r"[^\w\s]", " ", text)
 
-        # Collapse spaces
+        # Normalize whitespace
         text = " ".join(text.split())
 
         return text
 
-    def _normalize_author(self, author: str) -> str:
-        """Normalize author name for comparison, handling initials."""
-        if not author:
-            return ""
+    def _normalize_authors(self, authors: str) -> str:
+        """
+        Normalize author names for comparison.
 
-        # First apply basic text normalization
-        normalized = self._normalize_text(author)
+        Extract and sort last names to handle:
+        - Different name orders
+        - Abbreviations
+        - Multiple authors
+        """
+        # Split authors first (before normalization to preserve structure)
+        author_list = re.split(r"\s+and\s+", authors)
 
-        # Handle author name variations
-        # Split by common delimiters (comma, and, &)
-        author_parts = re.split(r"[,&]|\sand\s", normalized)
-
-        normalized_parts = []
-        for part in author_parts:
-            part = part.strip()
-            if not part:
+        # Extract last names
+        last_names = []
+        for author in author_list:
+            author = author.strip()
+            if not author:
                 continue
 
-            # Split into words
-            words = part.split()
-            if len(words) >= 2:
-                # Assume format like "Smith John" or "John Smith"
-                # Extract surname (longest word typically)
-                surname = max(words, key=len)
-                # Extract initials from other words
-                initials = []
-                for word in words:
-                    if word != surname:
-                        if len(word) == 1:
-                            # Already an initial
-                            initials.append(word)
-                        elif len(word) > 1:
-                            # Take first letter as initial
-                            initials.append(word[0])
-
-                # Create normalized form: "surname initial1 initial2"
-                if initials:
-                    normalized_parts.append(f"{surname} {' '.join(sorted(initials))}")
-                else:
-                    normalized_parts.append(surname)
+            # Check if it's "Last, First" format
+            if "," in author:
+                # Split by comma and take the first part as last name
+                parts = author.split(",", 1)
+                last_name = parts[0].strip()
             else:
-                # Single word, keep as is
-                normalized_parts.append(part)
+                # "First Last" format - take the last word
+                words = author.split()
+                if not words:
+                    continue
 
-        return " ".join(normalized_parts)
+                # Skip common suffixes
+                suffixes = {
+                    "jr",
+                    "sr",
+                    "ii",
+                    "iii",
+                    "iv",
+                    "v",
+                    "phd",
+                    "md",
+                    "Jr",
+                    "Sr",
+                    "II",
+                    "III",
+                    "IV",
+                    "V",
+                    "PhD",
+                    "MD",
+                }
+
+                # Work backwards to find last name
+                last_name = None
+                for i in range(len(words) - 1, -1, -1):
+                    word = words[i]
+                    if word not in suffixes and len(word) > 1:
+                        last_name = word
+                        break
+
+                # If we couldn't find a suitable last name, use the last word
+                if not last_name and words:
+                    last_name = words[-1]
+
+            if last_name:
+                # Normalize the last name
+                last_name = self._normalize_text(last_name)
+                if last_name:  # Only add non-empty normalized names
+                    last_names.append(last_name)
+
+        # Sort for consistent ordering
+        last_names.sort()
+
+        return " ".join(last_names)
 
     def _make_tay_key(self, entry: Entry) -> str:
         """Make normalized title-author-year key."""
@@ -133,7 +180,7 @@ class DuplicateDetector:
         title = self._normalize_text(entry.title or "")
 
         # Normalize authors with special handling for initials
-        authors = self._normalize_author(entry.author or "")
+        authors = self._normalize_authors(entry.author or "")
 
         # Handle year tolerance
         if self.year_tolerance > 0 and entry.year:
@@ -161,12 +208,17 @@ class DuplicateDetector:
                     seen.add(group_keys)
 
         # Check title-author-year duplicates
-        for key, entries in self.title_author_year_map.items():
-            if len(entries) > 1:
-                group_keys = frozenset(e.key for e in entries)
-                if group_keys not in seen:
-                    duplicates.append(entries)
-                    seen.add(group_keys)
+        if self.year_tolerance == 0:
+            # Exact year matching - use pre-built index
+            for key, entries in self.title_author_year_map.items():
+                if len(entries) > 1:
+                    group_keys = frozenset(e.key for e in entries)
+                    if group_keys not in seen:
+                        duplicates.append(entries)
+                        seen.add(group_keys)
+        else:
+            # Year tolerance - need custom grouping
+            self._find_tay_duplicates_with_tolerance(duplicates, seen)
 
         return duplicates
 
@@ -192,9 +244,15 @@ class DuplicateDetector:
 
         # Check title-author-year duplicates
         if entry.title and entry.author and entry.year:
-            key = self._make_tay_key(entry)
-            tay_dups = self.title_author_year_map.get(key, [])
-            other_dups = [e for e in tay_dups if e.key != entry.key]
+            if self.year_tolerance == 0:
+                # Use index for exact matching
+                key = self._make_tay_key(entry)
+                tay_dups = self.title_author_year_map.get(key, [])
+                other_dups = [e for e in tay_dups if e.key != entry.key]
+            else:
+                # Manual search with tolerance
+                other_dups = self._find_tay_matches_with_tolerance(entry)
+                
             if other_dups:
                 errors.append(
                     ValidationError(
@@ -287,3 +345,107 @@ class DuplicateDetector:
                     suggestions[field] = val2
 
         return suggestions
+
+    def _find_tay_duplicates_with_tolerance(
+        self, duplicates: list[list[Entry]], seen_groups: set[frozenset[str]]
+    ) -> None:
+        """Find title-author-year duplicates with year tolerance."""
+        # Group by title and author only
+        ta_groups: dict[str, list[Entry]] = {}
+
+        for entry in self.entries:
+            if entry.title and entry.author and entry.year:
+                title = self._normalize_text(entry.title)
+                authors = self._normalize_authors(entry.author)
+                ta_key = f"{title}|{authors}"
+                ta_groups.setdefault(ta_key, []).append(entry)
+
+        # Check each group for year proximity
+        for entries in ta_groups.values():
+            if len(entries) < 2:
+                continue
+
+            # Group by year tolerance using union-find approach
+            year_groups = self._group_by_year_tolerance(entries)
+
+            # Add groups with 2+ entries
+            for group in year_groups:
+                if len(group) > 1:
+                    group_keys = frozenset(e.key for e in group)
+                    if group_keys not in seen_groups:
+                        duplicates.append(group)
+                        seen_groups.add(group_keys)
+
+    def _group_by_year_tolerance(self, entries: list[Entry]) -> list[list[Entry]]:
+        """Group entries by year tolerance using connected components."""
+        if not entries:
+            return []
+
+        # Build adjacency list
+        n = len(entries)
+        adjacent = [set() for _ in range(n)]
+
+        for i in range(n):
+            for j in range(i + 1, n):
+                # Year fields are guaranteed to exist by caller
+                year_i = entries[i].year
+                year_j = entries[j].year
+                assert year_i is not None
+                assert year_j is not None
+                if abs(year_i - year_j) <= self.year_tolerance:
+                    adjacent[i].add(j)
+                    adjacent[j].add(i)
+
+        # Find connected components
+        visited = [False] * n
+        components = []
+
+        for i in range(n):
+            if not visited[i]:
+                component = []
+                self._dfs(i, visited, adjacent, component, entries)
+                components.append(component)
+
+        return components
+
+    def _dfs(
+        self,
+        node: int,
+        visited: list[bool],
+        adjacent: list[set[int]],
+        component: list[Entry],
+        entries: list[Entry],
+    ) -> None:
+        """Depth-first search for connected components."""
+        visited[node] = True
+        component.append(entries[node])
+
+        for neighbor in adjacent[node]:
+            if not visited[neighbor]:
+                self._dfs(neighbor, visited, adjacent, component, entries)
+
+    def _find_tay_matches_with_tolerance(self, target: Entry) -> list[Entry]:
+        """Find entries matching title/author/year with tolerance."""
+        matches = []
+
+        # These are guaranteed by the caller
+        assert target.title is not None
+        assert target.author is not None
+        assert target.year is not None
+
+        target_title = self._normalize_text(target.title)
+        target_authors = self._normalize_authors(target.author)
+
+        for entry in self.entries:
+            if entry.key == target.key:
+                continue
+
+            if entry.title and entry.author and entry.year:
+                if (
+                    self._normalize_text(entry.title) == target_title
+                    and self._normalize_authors(entry.author) == target_authors
+                    and abs(entry.year - target.year) <= self.year_tolerance
+                ):
+                    matches.append(entry)
+
+        return matches

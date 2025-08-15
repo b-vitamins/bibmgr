@@ -52,6 +52,11 @@ from bibmgr.core.titles import (
     TitleProcessor,
 )
 
+# Duplicate detection
+from bibmgr.core.duplicates import (
+    DuplicateDetector,
+)
+
 # Validators
 from bibmgr.core.validators import (
     AbstractLengthValidator,
@@ -59,7 +64,6 @@ from bibmgr.core.validators import (
     ConsistencyValidator,
     CrossReferenceValidator,
     DOIValidator,
-    DuplicateDetector,
     EntryKeyValidator,
     FieldFormatValidator,
     ISBNValidator,

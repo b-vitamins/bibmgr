@@ -6,9 +6,9 @@ and various normalization strategies.
 
 from typing import Any
 
+from bibmgr.core.duplicates import DuplicateDetector
 from bibmgr.core.fields import EntryType
 from bibmgr.core.models import Entry
-from bibmgr.core.validators import DuplicateDetector
 
 
 class TestDuplicateDetector:

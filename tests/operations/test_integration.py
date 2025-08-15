@@ -221,12 +221,7 @@ class TestFullWorkflowIntegration:
         ]
 
         for entry in entries:
-            # Cast to Entry for type safety
-            if hasattr(entry, "_entry"):
-                # It's an EntryWithExtras wrapper
-                manager.entries.save(entry._entry)  # type: ignore
-            else:
-                manager.entries.save(entry)  # type: ignore
+            manager.entries.save(entry)
 
         # Create collections
         collections = [
@@ -241,12 +236,7 @@ class TestFullWorkflowIntegration:
         ]
 
         for collection in collections:
-            # Cast to Collection for type safety
-            if hasattr(collection, "_collection"):
-                # It's a CollectionWithExtras wrapper
-                manager.collections.save(collection._collection)  # type: ignore
-            else:
-                manager.collections.save(collection)  # type: ignore
+            manager.collections.save(collection)
 
         # Delete entry that's in a collection
         from bibmgr.operations.commands.delete import DeleteCommand, DeleteHandler

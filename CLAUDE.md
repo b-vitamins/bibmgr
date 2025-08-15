@@ -2,128 +2,151 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Overview
+
+bibmgr is a professional bibliography management system with powerful search capabilities and a rich CLI interface. It manages bibliographic entries with full-text search, smart query understanding, multiple format support, and quality validation.
+
 ## Development Environment
 
-This project uses Guix for dependency management:
+This project uses Guix + Poetry for dependency management. Always work within the Guix shell:
+
 ```bash
+# Enter development environment
 guix shell -m manifest.scm
+
+# Install Python dependencies
+poetry install
 ```
 
-Never use pip install, poetry shell, or venv directly. All dependencies are managed through manifest.scm.
+## Essential Commands
 
-## Common Development Commands
-
-### Running the CLI
+### Quality Control Pipeline (Run before commits)
 ```bash
-# Main entry point
-poetry run bib [command]
-
-# Or directly
-python -m bibmgr.cli.main [command]
-```
-
-### Testing
-```bash
-# Run all tests
-pytest
-
-# Run tests with verbose output
-pytest -xvs
-
-# Run specific test file
-pytest tests/search/test_engine.py
-
-# Run with coverage
-pytest --cov=bibmgr
-```
-
-### Code Quality
-```bash
-# Format and lint with ruff
+# 1. Format code
 ruff format .
+
+# 2. Lint with auto-fix
 ruff check . --fix
 
-# Type checking with pyright
+# 3. Type checking
 pyright bibmgr/
+
+# 4. Run tests
+pytest -xvs
+
+# Run a single test
+pytest -xvs tests/test_module.py::test_function_name
 ```
 
-## Architecture Overview
+### CLI Commands
+```bash
+# Search entries
+poetry run bib search "query"
+poetry run bib search "author:bengio year:2015"
 
-### Core Components
+# Add entries
+poetry run bib add @article "author=Name title='Title' year=2024"
 
-**Search System** (`bibmgr/search/`)
-- `engine.py`: Whoosh-based full-text search with BM25F scoring, caching via diskcache
-- `query.py`: Query parsing with field-specific searches, boolean operators, wildcards
-- `models.py`: Data models using msgspec for fast serialization
-- `history.py`: Search history tracking
-- `locate.py`: File location utilities
+# Import/Export
+poetry run bib import file.bib
+poetry run bib export --format json
 
-**Storage Layer** (`bibmgr/storage/`)
-- `backend.py`: Main storage interface for bibliography entries
-- `parser.py`: BibTeX parsing and serialization
-- `sidecar.py`: Sidecar file management for metadata
-- `system.py`: System-level storage configuration
+# List and show entries
+poetry run bib list
+poetry run bib show entry-key
+```
 
-**CLI Interface** (`bibmgr/cli/`)
-- `main.py`: Entry point with Click command groups
-- `commands/`: Modular command implementations
-  - `entry_commands.py`: CRUD operations on entries
-  - `search_commands.py`: Search functionality
-  - `collection_commands.py`: Collection management
-  - `advanced_commands.py`: Import/export, deduplication, validation
-- `formatters.py`: Output formatting (JSON, CSV, BibTeX, Rich tables)
-- `output.py`: Rich console output management
+## Architecture
 
-**Data Models** (`bibmgr/core/`)
-- `models.py`: Core bibliography entry models
-- `validators.py`: Data validation logic
+The codebase follows a clean architecture pattern with these key layers:
 
-**Quality System** (`bibmgr/quality/`)
-- `engine.py`: Quality check orchestration
-- `validators.py`: Field-specific validators
-- `integrity.py`: Data integrity checks
-- `consistency.py`: Cross-field consistency validation
+### Core Domain (`bibmgr/core/`)
+- **models.py**: Immutable Entry, Collection, Tag dataclasses with caching
+- **validators.py**: Extensible validation framework for BibTeX compliance
+- **duplicates.py**: Duplicate detection with normalized author comparison
+- **bibtex.py**: BibTeX parsing and encoding utilities
 
-### Key Design Patterns
+### Storage Layer (`bibmgr/storage/`)
+- Repository pattern with abstract storage backend protocol
+- Backends: FileSystem (JSON), SQLite, Memory (for testing)
+- Event-driven updates trigger search index refreshes
+- Transaction support with validation integration
 
-1. **Performance Optimization**
-   - msgspec for serialization (faster than JSON/pickle)
-   - Whoosh for pure-Python full-text search
-   - diskcache for result caching (5-minute TTL)
-   - Polars for data manipulation where applicable
+### Search Engine (`bibmgr/search/`)
+- Pluggable backends: Whoosh (production), Memory (testing)
+- Query parsing supports field-specific syntax (author:, title:, year:)
+- Implicit AND logic for multi-term queries
+- BM25 ranking with highlighting support
 
-2. **CLI Structure**
-   - Click-based with command groups
-   - Rich for terminal formatting
-   - Multiple output formats via formatters
-   - Context passing for configuration
+### CLI Layer (`bibmgr/cli/`)
+- Click-based commands with Rich formatting
+- Context-managed dependency injection
+- Formatters for BibTeX, JSON, CSV, plain text output
+- Error handling with debug modes
 
-3. **Storage Strategy**
-   - Entries stored as JSON files
-   - Optional sidecar files for metadata
-   - Index in ~/.cache/bibmgr/index/
-   - Cache in ~/.cache/bibmgr/cache/
+### Operations (`bibmgr/operations/`)
+- High-level business operations and workflows
+- CRUD commands with validation
+- Import/export workflows with format detection
+- Cleaning operations for consistency
 
-4. **Search Features**
-   - Field-specific queries: `author:name`, `year:2020..2024`
-   - Boolean operators: AND, OR, NOT
-   - Wildcards and phrase search
-   - Query expansion with CS-domain synonyms
-   - Fuzzy matching for spell correction
+## Key Implementation Details
 
-## Testing Strategy
+### Adding New Features
+1. Domain models are immutable - use `replace()` for updates
+2. All storage operations go through Repository protocol
+3. Search index updates automatically via EventBus
+4. Validators are registered in validator registry
+5. CLI commands use dependency injection via context
 
-- Unit tests for each module
-- Integration tests for storage operations
-- Coverage tests for quality and locate modules
-- Fixtures in conftest.py files for test isolation
-- Environment variable isolation via pytest fixtures
+### Testing Approach
+- Use `tmp_path` fixture for file operations
+- Mock storage backends with MemoryBackend
+- Integration tests cover full CLI workflows
+- Environment isolation with `mock_env` fixture
+- Run specific tests: `pytest -xvs -k "test_name"`
 
-## Important Conventions
+### Type Safety
+- Pyright in "standard" mode enforced
+- 100% type coverage on public APIs required
+- Use Protocol types for backend interfaces
+- Explicit type annotations on function signatures
 
-- Python 3.11+ with type hints on function signatures
-- Dataclasses and enums for data modeling
-- Protocol-based interfaces where applicable
-- No __pycache__ or .pyc files in repo
-- All paths use pathlib.Path
-- f-strings for string formatting
+### Data Storage
+- User data: `~/.local/share/bibmgr/`
+- Cache data: `~/.cache/bibmgr/`
+- Never store data in repository
+- XDG-compliant paths via platformdirs
+
+## Common Development Tasks
+
+### Adding a New Validator
+1. Create validator in `bibmgr/core/validators.py`
+2. Register with `@validator_registry.register`
+3. Add tests in `tests/core/test_validators.py`
+
+### Adding a New CLI Command
+1. Create command in `bibmgr/cli/commands/`
+2. Register in main CLI group
+3. Use context for dependency injection
+4. Add integration test in `tests/cli/`
+
+### Modifying Search Behavior
+1. Update query parser in `bibmgr/search/query/`
+2. Adjust search backend implementation
+3. Update highlighting logic if needed
+4. Test with both Whoosh and Memory backends
+
+### Working with BibTeX
+1. Parser in `bibmgr/core/bibtex.py`
+2. Handles standard entry types and fields
+3. Preserves field order and formatting
+4. Supports LaTeX special characters
+
+## Performance Considerations
+
+- Entry models cache computed properties (authors, search_text)
+- Search uses Whoosh indexing for sub-millisecond queries
+- Batch operations for import/export
+- Disk caching with diskcache library
+- Lazy loading of large datasets
