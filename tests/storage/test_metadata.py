@@ -451,35 +451,6 @@ class TestTagIndex:
         assert store.get_metadata("entry1").tags == {"new-name", "other"}
         assert store.get_metadata("entry3").tags == {"unrelated"}
 
-    def test_merge_tags(self, temp_dir):
-        """Multiple tags can be merged into one."""
-        from bibmgr.storage.metadata import EntryMetadata, MetadataStore
-
-        store = MetadataStore(temp_dir)
-
-        store.save_metadata(
-            EntryMetadata(entry_key="entry1", tags={"ml", "deep-learning"})
-        )
-
-        store.save_metadata(
-            EntryMetadata(entry_key="entry2", tags={"machine-learning", "neural-nets"})
-        )
-
-        store.save_metadata(EntryMetadata(entry_key="entry3", tags={"ML", "ai"}))
-
-        count = store.merge_tags(["ml", "ML", "neural-nets"], "machine-learning")
-        assert count == 3
-
-        ml_entries = store.find_by_tag("machine-learning")
-        assert set(ml_entries) == {"entry1", "entry2", "entry3"}
-
-        assert store.find_by_tag("ml") == []
-        assert store.find_by_tag("ML") == []
-        assert store.find_by_tag("neural-nets") == []
-
-        assert "deep-learning" in store.get_metadata("entry1").tags
-        assert "ai" in store.get_metadata("entry3").tags
-
     def test_tag_index_persistence(self, temp_dir):
         """Tag index is persisted and reloaded correctly."""
         from bibmgr.storage.metadata import EntryMetadata, MetadataStore

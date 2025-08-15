@@ -449,12 +449,17 @@ class TestQueryParser:
         assert result.boost == 2.5
 
     def test_parse_multiple_terms_as_phrase(self, parser):
-        """Multiple terms without operators default to term query."""
+        """Multiple terms without operators default to implicit AND query."""
         result = parser.parse("machine learning")
 
-        # Without AND/OR, treated as single term
-        assert isinstance(result, TermQuery)
-        assert result.term == "machine learning"
+        # Without AND/OR, treated as implicit AND of terms
+        assert isinstance(result, BooleanQuery)
+        assert result.operator == BooleanOperator.AND
+        assert len(result.queries) == 2
+        assert isinstance(result.queries[0], TermQuery)
+        assert result.queries[0].term == "machine"
+        assert isinstance(result.queries[1], TermQuery)
+        assert result.queries[1].term == "learning"
 
     # Phrase queries
     def test_parse_simple_phrase(self, parser):

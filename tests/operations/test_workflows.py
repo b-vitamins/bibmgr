@@ -575,8 +575,11 @@ class TestExportWorkflow:
 
         # Verify valid JSON
         data = json.loads(export_file.read_text())
-        assert isinstance(data, list)  # Export returns list of entries
-        assert len(data) == len(populated_repository.find_all())
+        assert isinstance(data, dict)  # Export returns structured format
+        assert "entries" in data
+        assert "total" in data
+        assert len(data["entries"]) == len(populated_repository.find_all())
+        assert data["total"] == len(populated_repository.find_all())
 
     def test_export_with_metadata(
         self, populated_repository, metadata_store, event_bus, temp_dir

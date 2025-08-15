@@ -283,10 +283,11 @@ class TestCollectionOperations:
 
     def test_collection_command_error_handling(self, handler):
         """Test error handling in collection commands."""
+
         # Test with invalid command type
         class InvalidCommand:
             pass
-        
+
         result = handler.execute(InvalidCommand())
         assert not result.status.is_success()
         assert result.status == ResultStatus.ERROR
