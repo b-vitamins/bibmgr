@@ -35,6 +35,7 @@ class ImportWorkflowConfig:
     merge_duplicates: bool = False
     update_existing: bool = False
     dry_run: bool = False
+    continue_on_error: bool = False
     tags: list[str] | None = None
     collection: str | None = None
 
@@ -147,6 +148,10 @@ class ImportWorkflow:
 
             create_result = self._create_entry(entry, config)
             result.add_step(create_result)
+
+            # If continue_on_error is False, stop on any failure
+            if not config.continue_on_error and not create_result.success:
+                break
 
         if config.tags or config.collection:
             post_result = self._post_process(result.successful_entities, config)

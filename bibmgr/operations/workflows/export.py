@@ -375,7 +375,20 @@ class ExportWorkflow:
             path = Path(destination)
             path.parent.mkdir(parents=True, exist_ok=True)
 
-            entries_data = [entry.to_dict() for entry in entries]
+            # Export entries without internal fields
+            entries_data = []
+            for entry in entries:
+                entry_dict = entry.to_dict()
+                # Remove internal fields that shouldn't be exported
+                export_dict = {
+                    k: v
+                    for k, v in entry_dict.items()
+                    if k not in ["added", "modified", "tags"]
+                }
+                entries_data.append(export_dict)
+
+            # Always use structured format for JSON exports
+            data = {"entries": entries_data, "total": len(entries)}
 
             if (
                 config.include_metadata
@@ -396,9 +409,7 @@ class ExportWorkflow:
                         "notes_count": metadata.notes_count,
                     }
 
-                data = {"entries": entries_data, "metadata": metadata_dict}
-            else:
-                data = entries_data
+                data["metadata"] = metadata_dict
 
             with open(path, "w", encoding=config.encoding) as f:
                 if config.pretty_print:

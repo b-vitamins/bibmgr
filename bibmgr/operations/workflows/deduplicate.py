@@ -413,18 +413,23 @@ class DeduplicationWorkflow:
         if entries[0].doi and all(e.doi == entries[0].doi for e in entries[1:]):
             return MatchType.DOI
 
+        # Since entries were detected as duplicates by DuplicateDetector,
+        # which uses normalized comparison, we should check if they have
+        # the basic fields for TAY matching even if not exactly equal
         if (
             entries[0].title
             and entries[0].author
             and entries[0].year
-            and all(
-                e.title == entries[0].title
-                and e.author == entries[0].author
-                and e.year == entries[0].year
-                for e in entries[1:]
-            )
+            and all(e.title and e.author and e.year for e in entries[1:])
         ):
-            return MatchType.TITLE_AUTHOR_YEAR
+            # Check if titles and years match exactly
+            if all(
+                e.title == entries[0].title and e.year == entries[0].year
+                for e in entries[1:]
+            ):
+                # If title and year match, this is likely a TAY match
+                # even if authors have different formats
+                return MatchType.TITLE_AUTHOR_YEAR
 
         return MatchType.FUZZY
 

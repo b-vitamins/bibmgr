@@ -35,6 +35,8 @@ class QualityHandler:
             return self._handle_check_consistency(command)
         elif command_type == "GenerateQualityReportCommand":
             return self._handle_generate_report(command)
+        elif command_type == "CleanCommand":
+            return self._handle_clean_command(command)
         else:
             return OperationResult(
                 status=ResultStatus.ERROR, message=f"Unknown command: {command_type}"
@@ -471,6 +473,113 @@ class QualityHandler:
         """
 
         return html.strip()
+
+    def _handle_clean_command(self, command) -> OperationResult:
+        """Handle clean command."""
+        entries = command.entries
+        dry_run = command.dry_run
+
+        if not entries:
+            return OperationResult(
+                status=ResultStatus.SUCCESS,
+                message="No entries to clean",
+                data={"cleaned": 0, "changes": {}},
+            )
+
+        cleaned_count = 0
+        changes = {
+            "whitespace_cleaned": 0,
+            "title_capitalized": 0,
+            "pages_formatted": 0,
+            "author_formatted": 0,
+        }
+        proposed_changes = []
+
+        for i, entry in enumerate(entries):
+            entry_changes = []
+            modified = False
+            new_data = entry.to_dict()
+
+            # Clean title whitespace and capitalize
+            if hasattr(entry, "title") and entry.title:
+                original_title = entry.title
+                # Clean whitespace
+                cleaned_title = " ".join(original_title.split())
+                # Capitalize first letter if not already
+                if cleaned_title and cleaned_title[0].islower():
+                    cleaned_title = cleaned_title[0].upper() + cleaned_title[1:]
+
+                if cleaned_title != original_title:
+                    if not dry_run:
+                        new_data["title"] = cleaned_title
+                    entry_changes.append(
+                        f"Title: '{original_title}' → '{cleaned_title}'"
+                    )
+                    changes["whitespace_cleaned"] += 1
+                    if cleaned_title != " ".join(original_title.split()):
+                        changes["title_capitalized"] += 1
+                    modified = True
+
+            # Format pages (change - to --)
+            if hasattr(entry, "pages") and entry.pages:
+                original_pages = entry.pages
+                # Replace single dash with double dash for page ranges
+                import re
+
+                cleaned_pages = re.sub(r"(\d+)-(\d+)", r"\1--\2", original_pages)
+
+                if cleaned_pages != original_pages:
+                    if not dry_run:
+                        new_data["pages"] = cleaned_pages
+                    entry_changes.append(
+                        f"Pages: '{original_pages}' → '{cleaned_pages}'"
+                    )
+                    changes["pages_formatted"] += 1
+                    modified = True
+
+            # Format author names (basic cleaning)
+            if hasattr(entry, "author") and entry.author:
+                original_author = entry.author
+                # Clean whitespace
+                cleaned_author = " ".join(original_author.split())
+
+                if cleaned_author != original_author:
+                    if not dry_run:
+                        new_data["author"] = cleaned_author
+                    entry_changes.append(
+                        f"Author: '{original_author}' → '{cleaned_author}'"
+                    )
+                    changes["author_formatted"] += 1
+                    modified = True
+
+            if modified:
+                cleaned_count += 1
+                if dry_run:
+                    proposed_changes.extend(
+                        [f"{entry.key}: {change}" for change in entry_changes]
+                    )
+                else:
+                    # Create new entry with cleaned data and replace in list
+                    from ..core.models import Entry
+
+                    entries[i] = Entry.from_dict(new_data)
+
+        if dry_run:
+            return OperationResult(
+                status=ResultStatus.SUCCESS,
+                message=f"Would clean {cleaned_count} entries",
+                data={
+                    "would_clean": cleaned_count,
+                    "changes": changes,
+                    "proposed_changes": proposed_changes,
+                },
+            )
+        else:
+            return OperationResult(
+                status=ResultStatus.SUCCESS,
+                message=f"Cleaned {cleaned_count} entries",
+                data={"cleaned": cleaned_count, "changes": changes},
+            )
 
 
 # Create aliases for consistency
